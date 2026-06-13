@@ -11,6 +11,39 @@ A premium, ultra-clean Android unit converter built with **Jetpack Compose**,
 - **`BigDecimal` precision** (34 significant digits) so chained conversions
   never drift. Every factor is verified against authoritative definitions.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/01-home.png" alt="All-units live list with Starred section" /><br/>
+      <sub>All units at once · Starred</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/06-empty-state.png" alt="Empty state" /><br/>
+      <sub>Clean empty state</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/03-unit-picker.png" alt="Searchable unit picker" /><br/>
+      <sub>Searchable unit picker</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/05-settings.png" alt="Settings: precision and number format" /><br/>
+      <sub>Settings · precision &amp; format</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/04-share.png" alt="Share conversion snapshot" /><br/>
+      <sub>Share snapshot</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/02-history.png" alt="Conversion history" /><br/>
+      <sub>On-device history</sub>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 - **All-units live list** (Google-style): type once, see every unit convert
