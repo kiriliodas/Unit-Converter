@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,9 +35,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import com.blood.unitconverter.data.UnitDef
 import com.blood.unitconverter.ui.morph.pressSqueeze
@@ -62,6 +67,15 @@ fun UnitPickerSheet(
     if (!expanded) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(query, units) {
+        if (query.isBlank()) units
+        else units.filter {
+            it.displayName.contains(query, ignoreCase = true) ||
+                it.symbol.contains(query, ignoreCase = true)
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -73,11 +87,18 @@ fun UnitPickerSheet(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
         )
+        // Search / filter — useful when a category has many units.
+        SearchField(
+            query = query,
+            onQueryChange = { query = it },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        Spacer(Modifier.height(4.dp))
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            items(units, key = { it.id }) { unit ->
+            items(filtered, key = { it.id }) { unit ->
                 UnitRow(
                     unit = unit,
                     selected = unit.id == selected.id,
@@ -86,6 +107,56 @@ fun UnitPickerSheet(
             }
         }
         Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Rounded.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                if (query.isEmpty()) {
+                    Text(
+                        "Search units",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        maxLines = 1,
+                    )
+                }
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    singleLine = true,
+                    maxLines = 1,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 

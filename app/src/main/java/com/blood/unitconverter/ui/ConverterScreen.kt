@@ -2,18 +2,10 @@ package com.blood.unitconverter.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -32,51 +24,82 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.blood.unitconverter.ConverterViewModel
 import com.blood.unitconverter.data.UnitDef
-import com.blood.unitconverter.ui.morph.MorphBadge
+import com.blood.unitconverter.logic.Precision
 import com.blood.unitconverter.ui.morph.MorphIconButton
-import com.blood.unitconverter.ui.morph.MorphPolygonShape
-import com.blood.unitconverter.ui.morph.Morphs
 import com.blood.unitconverter.ui.morph.pressSqueeze
 import com.blood.unitconverter.ui.theme.DisplayNumberStyle
 import com.blood.unitconverter.ui.theme.InputNumberStyle
 import com.blood.unitconverter.ui.theme.Motion
+import kotlinx.coroutines.launch
 
 @Composable
 fun ConverterScreen(vm: ConverterViewModel) {
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    val haptics = LocalHapticFeedback.current
+
+    val precision by vm.precision.collectAsState()
+    var showHistory by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+
+    fun copy(unit: UnitDef, value: String) {
+        if (value.isEmpty()) return
+        val text = vm.copyText(value, withSymbol = true, symbol = unit.symbol)
+        clipboard.setText(AnnotatedString(text))
+        vm.saveToHistory()
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        scope.launch { snackbar.showSnackbar("Copied $text") }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         contentWindowInsets = WindowInsets.safeDrawing,
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -86,42 +109,54 @@ fun ConverterScreen(vm: ConverterViewModel) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(Modifier.height(4.dp))
-            Header(active = vm.result.isNotEmpty())
+            Header(
+                showTagline = vm.showTagline,
+                onHistory = { showHistory = true },
+                onSettings = { showSettings = true },
+            )
 
             CategorySelector(vm)
 
-            // Hero feature card: the big result on a morphing expressive shape.
-            ResultCard(result = vm.result, unit = vm.toUnit)
+            // Tightly grouped input + unit pickers.
+            InputCard(vm, precision, haptics)
 
-            // Tightly grouped input + unit pickers on a single structural surface.
-            InputCard(vm)
-
+            // PRIMARY RESULT AREA — all units live (Google-style). Tap to copy.
+            AllResultsList(
+                vm = vm,
+                precision = precision,
+                onCopy = { unit, value -> copy(unit, value) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
             Spacer(Modifier.height(4.dp))
-            ActionRow(vm)
         }
+    }
+
+    if (showHistory) {
+        HistorySheet(
+            history = vm.history.collectAsState().value,
+            categories = vm.categories,
+            onPick = { vm.applyHistory(it); showHistory = false },
+            onClear = { vm.clearHistory() },
+            onDismiss = { showHistory = false },
+        )
+    }
+    if (showSettings) {
+        SettingsSheet(
+            precision = precision,
+            onPrecision = { vm.onSetPrecision(it) },
+            onDismiss = { showSettings = false },
+        )
     }
 }
 
 @Composable
-private fun Header(active: Boolean) {
-    // Slow breathing morph (circle ⇄ flower) that runs while a result is live.
-    val breathe = rememberInfiniteTransition(label = "headerBreathe")
-    val breatheProgress by breathe.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "breatheProgress",
-    )
-    // When idle, settle the badge into its calm circle (progress 0) via spring.
-    val activeProgress by animateFloatAsState(
-        targetValue = if (active) 1f else 0f,
-        animationSpec = Motion.spatialExpressive(),
-        label = "headerActive",
-    )
-
+private fun Header(
+    showTagline: Boolean,
+    onHistory: () -> Unit,
+    onSettings: () -> Unit,
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(
@@ -129,52 +164,89 @@ private fun Header(active: Boolean) {
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = "Fast · Offline · Private",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (showTagline) {
+                Text(
+                    text = "Fast · Offline · Private",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
-        MorphBadge(
-            progress = breatheProgress * activeProgress,
-            size = 18.dp,
-            morph = Morphs.circleToFlower,
-        )
+        HeaderAction(Icons.Rounded.History, "History", onHistory)
+        Spacer(Modifier.width(4.dp))
+        HeaderAction(Icons.Rounded.Tune, "Settings", onSettings)
     }
 }
 
 @Composable
+private fun HeaderAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier
+            .size(48.dp) // ≥48dp touch target
+            .then(pressSqueeze(interaction)),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+/** Category chips with a fade gradient on both edges hinting at more tabs. */
+@Composable
 private fun CategorySelector(vm: ConverterViewModel) {
+    val state = rememberLazyListState()
+    val edge = MaterialTheme.colorScheme.surface
+
     LazyRow(
+        state = state,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(vertical = 2.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawWithContent {
+                drawContent()
+                val w = 24.dp.toPx()
+                // left edge fade (opaque background -> transparent)
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        0f to edge, 1f to Color.Transparent,
+                        startX = 0f, endX = w,
+                    ),
+                    size = androidx.compose.ui.geometry.Size(w, size.height),
+                )
+                // right edge fade (transparent -> opaque background)
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        0f to Color.Transparent, 1f to edge,
+                        startX = size.width - w, endX = size.width,
+                    ),
+                    topLeft = Offset(size.width - w, 0f),
+                    size = androidx.compose.ui.geometry.Size(w, size.height),
+                )
+            },
     ) {
         items(vm.categories, key = { it.id }) { category ->
-            val selected = category.id == vm.selectedCategory.id
             ExpressiveCategoryChip(
                 label = category.displayName,
-                selected = selected,
+                selected = category.id == vm.selectedCategory.id,
                 onClick = { vm.onSelectCategory(category) },
             )
         }
     }
 }
 
-/**
- * A category chip. It keeps a clean PILL shape (morph silhouettes only look
- * right on square components, so we don't stretch one across a wide chip).
- * The expressive feel comes from a springy pop-scale on selection + a springy
- * press squeeze, with calm color cross-fades.
- */
 @Composable
-private fun ExpressiveCategoryChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
+private fun ExpressiveCategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
-
-    // Selection pops with a slight overshoot.
     val selectScale by animateFloatAsState(
         targetValue = if (selected) 1.06f else 1f,
         animationSpec = Motion.spatialExpressive(),
@@ -192,19 +264,15 @@ private fun ExpressiveCategoryChip(
         animationSpec = Motion.effects(),
         label = "chipLabelColor",
     )
-
     Surface(
         onClick = onClick,
         interactionSource = interaction,
-        shape = RoundedCornerShape(50), // pill
+        shape = RoundedCornerShape(50),
         color = container,
         contentColor = labelColor,
         modifier = Modifier
             .heightIn(min = 40.dp)
-            .graphicsLayer {
-                scaleX = selectScale
-                scaleY = selectScale
-            }
+            .graphicsLayer { scaleX = selectScale; scaleY = selectScale }
             .then(pressSqueeze(interaction)),
     ) {
         Box(
@@ -217,114 +285,15 @@ private fun ExpressiveCategoryChip(
 }
 
 /**
- * HERO CARD — the big result.
- *
- * The card keeps a stable Extra-Large (32dp) squircle so wide text content is
- * never clipped, but it spring-breathes a subtle scale when a result appears
- * (organic weight). The figure itself does the expressive "overshoot & squeeze":
- * it spring-slides up and scales past 1.0 before settling. AnimatedContent keeps
- * the previous number from jumping while the new one arrives.
- *
- * A small decorative morphing accent (squircle ⇄ star) sits beside the unit
- * label to carry the shape-morph language without endangering the layout.
+ * INPUT CARD — value field (with a persistent unit label shown inline) + the two
+ * unit selectors and a large morphing swap button with haptics.
  */
 @Composable
-private fun ResultCard(result: String, unit: UnitDef) {
-    val hasResult = result.isNotEmpty()
-
-    // Gentle spring "breath" of the whole card when a value is present.
-    val cardScale by animateFloatAsState(
-        targetValue = if (hasResult) 1f else 0.985f,
-        animationSpec = Motion.spatialExpressive(),
-        label = "cardBreath",
-    )
-    // Accent dot morph progress: squircle (rest) -> star (active).
-    val accentMorph by animateFloatAsState(
-        targetValue = if (hasResult) 1f else 0f,
-        animationSpec = Motion.spatialDefault(),
-        label = "accentMorph",
-    )
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 150.dp)
-            .graphicsLayer {
-                scaleX = cardScale
-                scaleY = cardScale
-            },
-        shape = MaterialTheme.shapes.extraLarge, // stable 32dp squircle
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 28.dp, vertical = 28.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(MorphPolygonShape(Morphs.cookieToStar, accentMorph))
-                        .background(MaterialTheme.colorScheme.primary),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = unit.displayName,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 56.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                AnimatedContent(
-                    targetState = result,
-                    transitionSpec = {
-                        // Overshoot & squeeze: spring-scale + spring-slide in,
-                        // calm fade out of the old value.
-                        (scaleIn(Motion.spatialExpressive(), initialScale = 0.7f) +
-                            slideInVertically(Motion.spatialDefault()) { it / 3 } +
-                            fadeIn(Motion.effects()))
-                            .togetherWith(
-                                scaleOut(Motion.effects(), targetScale = 0.95f) +
-                                    fadeOut(Motion.effects())
-                            )
-                    },
-                    label = "result",
-                ) { value ->
-                    Text(
-                        text = value.ifEmpty { "0" },
-                        style = DisplayNumberStyle,
-                        color = if (value.isEmpty())
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                        else MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = unit.symbol,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-/**
- * INPUT CARD — groups the value field and the two unit selectors tightly. The
- * central control is now a MORPHING swap button (circle ⇄ star on press) that
- * also spins 180° with a bouncy spring whenever units are swapped.
- */
-@Composable
-private fun InputCard(vm: ConverterViewModel) {
+private fun InputCard(
+    vm: ConverterViewModel,
+    precision: Precision,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+) {
     var swapToggles by remember { mutableStateOf(0) }
     val rotation by animateFloatAsState(
         targetValue = swapToggles * 180f,
@@ -334,13 +303,14 @@ private fun InputCard(vm: ConverterViewModel) {
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large, // 28dp
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             ValueField(
                 value = vm.input,
                 isError = vm.hasError,
+                unitSymbol = vm.fromUnit.symbol,
                 onChange = vm::onInputChange,
             )
             Spacer(Modifier.height(14.dp))
@@ -359,8 +329,9 @@ private fun InputCard(vm: ConverterViewModel) {
                     onClick = {
                         vm.onSwap()
                         swapToggles++
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     },
-                    size = 52.dp,
+                    size = 56.dp, // ≥48dp touch target
                 ) {
                     Icon(
                         Icons.Rounded.SwapVert,
@@ -382,29 +353,24 @@ private fun InputCard(vm: ConverterViewModel) {
 
 /**
  * The value input.
- *
- * BUG-PREVENTION DETAILS (unchanged guarantees):
- *  - Single-line; placeholder and live text share one Box + identical style, so
- *    they can never overlap or wrap.
- *  - Fixed min height reserves vertical space.
- *
- * Added expressive touch: on a parse error the field gives a small spring
- * "shake"/squeeze and its container color animates calmly to the error tone.
+ *  - Single-line; placeholder + live text share one Box + style (never overlap).
+ *  - A PERSISTENT unit symbol stays pinned to the right so the active unit is
+ *    always visible inline.
+ *  - Negative values are fully supported (the keypad shows '-').
  */
 @Composable
 private fun ValueField(
     value: String,
     isError: Boolean,
+    unitSymbol: String,
     onChange: (String) -> Unit,
 ) {
     val container by animateColorAsState(
-        targetValue = if (isError)
-            MaterialTheme.colorScheme.errorContainer
+        targetValue = if (isError) MaterialTheme.colorScheme.errorContainer
         else MaterialTheme.colorScheme.surfaceContainerHighest,
         animationSpec = Motion.effects(),
         label = "fieldColor",
     )
-    // Spring squeeze nudge when entering the error state.
     val errorScale by animateFloatAsState(
         targetValue = if (isError) 1.02f else 1f,
         animationSpec = Motion.spatialExpressive(),
@@ -418,35 +384,44 @@ private fun ValueField(
             .fillMaxWidth()
             .graphicsLayer { scaleX = errorScale },
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 64.dp)
                 .background(container)
                 .padding(horizontal = 18.dp, vertical = 12.dp),
-            contentAlignment = Alignment.CenterStart,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (value.isEmpty()) {
-                Text(
-                    text = "Enter value",
-                    style = InputNumberStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = "Enter value",
+                        style = InputNumberStyle,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onChange,
+                    singleLine = true,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    textStyle = InputNumberStyle.copy(
+                        color = if (isError) MaterialTheme.colorScheme.onErrorContainer
+                        else MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            BasicTextField(
-                value = value,
-                onValueChange = onChange,
-                singleLine = true,
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = unitSymbol,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
-                textStyle = InputNumberStyle.copy(
-                    color = if (isError) MaterialTheme.colorScheme.onErrorContainer
-                    else MaterialTheme.colorScheme.onSurface,
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -468,25 +443,17 @@ private fun UnitColumn(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
         )
-        UnitPickerButton(
-            selected = selected,
-            onClick = { expanded = true },
-        )
+        UnitPickerButton(selected = selected, onClick = { expanded = true })
         UnitPickerSheet(
             expanded = expanded,
             units = units,
             selected = selected,
-            onSelect = {
-                onSelect(it)
-                expanded = false
-            },
+            onSelect = { onSelect(it); expanded = false },
             onDismiss = { expanded = false },
         )
     }
 }
 
-/** Unit picker button with springy press feedback and a swap-driven value
- *  cross-fade so the chosen unit changes feel animated, not abrupt. */
 @Composable
 private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
@@ -502,7 +469,7 @@ private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 52.dp)
+                .heightIn(min = 56.dp)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -520,15 +487,13 @@ private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
                         text = unit.symbol,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = unit.displayName,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -536,61 +501,118 @@ private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
     }
 }
 
+/**
+ * ALL-UNITS LIVE LIST — the primary result surface. Every unit in the category
+ * is converted from the current From value and shown at once. The active From
+ * unit is highlighted. Tap any row to copy it (with its symbol). When there's no
+ * input, rows are dimmed with a hint so "0" is never mistaken for a real result.
+ */
 @Composable
-private fun ActionRow(vm: ConverterViewModel) {
-    val clipboard = LocalClipboardManager.current
-    val clearInteraction = remember { MutableInteractionSource() }
-    val copyInteraction = remember { MutableInteractionSource() }
+private fun AllResultsList(
+    vm: ConverterViewModel,
+    precision: Precision,
+    onCopy: (UnitDef, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val rows = vm.allResults(precision)
+    val hasInput = vm.input.isNotBlank() && !vm.hasError
 
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Clear (pill, tonal) — springy press squeeze.
-        Surface(
-            onClick = vm::onClear,
-            interactionSource = clearInteraction,
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier
-                .weight(1f)
-                .then(pressSqueeze(clearInteraction)),
-        ) {
-            Row(
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        if (!hasInput) {
+            Box(
                 modifier = Modifier
-                    .heightIn(min = 52.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
+                    .fillMaxSize()
+                    .heightIn(min = 120.dp)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Clear", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = if (vm.hasError) "Enter a valid number"
+                    else "Type a value to see every unit",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(rows, key = { it.first.id }) { (unit, value, isFrom) ->
+                    ResultRow(unit = unit, value = value, isFrom = isFrom, onCopy = { onCopy(unit, value) })
+                }
             }
         }
-        // Copy result (pill, primary) — springy press squeeze.
-        Surface(
-            onClick = {
-                if (vm.result.isNotEmpty()) {
-                    clipboard.setText(AnnotatedString(vm.result))
-                }
-            },
-            interactionSource = copyInteraction,
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+    }
+}
+
+@Composable
+private fun ResultRow(unit: UnitDef, value: String, isFrom: Boolean, onCopy: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = onCopy,
+        interactionSource = interaction,
+        shape = RoundedCornerShape(16.dp),
+        color = if (isFrom) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(pressSqueeze(interaction, pressedScale = 0.98f)),
+    ) {
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .then(pressSqueeze(copyInteraction)),
+                .fillMaxWidth()
+                .heightIn(min = 60.dp)
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .heightIn(min = 52.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Copy", style = MaterialTheme.typography.labelLarge)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = unit.displayName,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isFrom) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Box(modifier = Modifier.heightIn(min = 32.dp), contentAlignment = Alignment.CenterStart) {
+                    AnimatedContent(
+                        targetState = value,
+                        transitionSpec = {
+                            (fadeIn(Motion.effects())).togetherWith(fadeOut(Motion.effects()))
+                        },
+                        label = "rowValue",
+                    ) { v ->
+                        Text(
+                            text = v,
+                            style = if (isFrom) DisplayNumberStyle.copy(fontSize = MaterialTheme.typography.headlineSmall.fontSize)
+                            else InputNumberStyle,
+                            color = if (isFrom) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = unit.symbol,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (isFrom) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Icons.Rounded.ContentCopy,
+                contentDescription = "Copy ${unit.displayName}",
+                modifier = Modifier.size(18.dp),
+                tint = if (isFrom) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
         }
     }
 }

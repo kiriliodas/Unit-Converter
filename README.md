@@ -11,6 +11,19 @@ A premium, ultra-clean Android unit converter built with **Jetpack Compose**,
 - **BigDecimal precision** (34 significant digits) so chained conversions never
   drift.
 
+### Features
+- **All-units live list** (Google-style): type once, see every unit in the
+  category convert instantly. Tap any row to copy it (with its symbol).
+- **Smart number formatting**: grouped both sides of the decimal
+  (`1 234 567.891 234`), significant-figure aware for tiny values.
+- **Adjustable precision**: Auto / 2 / 4 / 6 / 8 decimals (Settings).
+- **Conversion history**: recent conversions, tap to restore, one-tap clear.
+- **Searchable unit picker** bottom sheet.
+- **Negatives supported** (e.g. -40 °C), inline active-unit label, haptics on
+  swap/copy, ≥48dp touch targets.
+- **On-device storage only** (DataStore). History, last-used units, and settings
+  never leave the device — fully compatible with the no-`INTERNET` model.
+
 ## Design notes (Material 3 Expressive)
 
 | Requirement | Where it lives |
