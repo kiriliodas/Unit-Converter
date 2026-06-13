@@ -31,6 +31,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.CompareArrows
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -59,14 +65,12 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.blood.unitconverter.ConverterViewModel
 import com.blood.unitconverter.data.UnitDef
 import com.blood.unitconverter.logic.Precision
 import com.blood.unitconverter.ui.morph.MorphIconButton
 import com.blood.unitconverter.ui.morph.pressSqueeze
 import com.blood.unitconverter.ui.theme.DisplayNumberStyle
-import com.blood.unitconverter.ui.theme.FaIcons
 import com.blood.unitconverter.ui.theme.InputNumberStyle
 import com.blood.unitconverter.ui.theme.Motion
 import kotlinx.coroutines.launch
@@ -171,15 +175,15 @@ private fun Header(
                 )
             }
         }
-        HeaderAction(FaIcons.HISTORY, "History", onHistory)
+        HeaderAction(Icons.Rounded.History, "History", onHistory)
         Spacer(Modifier.width(4.dp))
-        HeaderAction(FaIcons.SETTINGS, "Settings", onSettings)
+        HeaderAction(Icons.Rounded.Tune, "Settings", onSettings)
     }
 }
 
 @Composable
 private fun HeaderAction(
-    glyph: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
 ) {
@@ -195,7 +199,7 @@ private fun HeaderAction(
             .then(pressSqueeze(interaction)),
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            FaIcon(glyph, contentDescription = label, size = 18.sp)
+            Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -333,11 +337,12 @@ private fun InputCard(
                     },
                     size = 56.dp, // ≥48dp touch target
                 ) {
-                    FaIcon(
-                        FaIcons.SWAP,
+                    Icon(
+                        Icons.AutoMirrored.Rounded.CompareArrows,
                         contentDescription = "Swap units",
-                        size = 20.sp,
-                        modifier = Modifier.graphicsLayer { rotationZ = rotation },
+                        modifier = Modifier
+                            .size(24.dp)
+                            .graphicsLayer { rotationZ = rotation },
                     )
                 }
                 UnitColumn(
@@ -657,7 +662,12 @@ private fun CopyButton(onClick: () -> Unit, tint: Color, description: String) {
             .then(pressSqueeze(interaction)),
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            FaIcon(FaIcons.COPY, contentDescription = description, size = 16.sp, tint = tint)
+            Icon(
+                Icons.Rounded.ContentCopy,
+                contentDescription = description,
+                tint = tint,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
