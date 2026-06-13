@@ -18,10 +18,14 @@ A premium, ultra-clean Android unit converter built with **Jetpack Compose**,
     the new input (reverse lookup). **★** → pin a unit to the top. **Copy** icon
     → copy that value with its symbol.
 - **Share** a full snapshot of all conversions (header button).
-- **Smart formatting**: integer part grouped (`1 234 567.89`), no confusing
-  mid-decimal spaces; proper minus sign (−); long values **auto-shrink to fit**
-  (never truncated) before falling back to scientific notation.
-- **Precision**: 0 / 2 / 4 / 6 / 8 / Auto decimals.
+- **Smart formatting**: comma thousands separators (`1,234,567.89`), proper
+  minus sign (−); long values **auto-shrink to fit** (never truncated).
+- **Precision**: 0 / 2 / 4 / 6 / 8 / Auto decimals (2×3 grid in Settings).
+- **Number format toggle**: Standard / Scientific (`1.5×10¹⁴`).
+- **Starred section**: pinned units group under a "Starred" header at the top.
+- **Results scroll to top** after any unit change; the From unit is tagged in
+  the To picker (and vice-versa) so you don't pick the same unit twice.
+- **Share** shows a preview before sending; keyboard auto-opens on launch.
 - **Fredoka** typeface throughout (bundled offline). Crisp, perfectly-centered
   Material vector icons. Shifting result numbers use a monospace family so the
   layout never jumps as you type.

@@ -90,17 +90,25 @@ fun HistorySheet(
         }
 
         if (history.isEmpty()) {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 140.dp)
+                    .heightIn(min = 160.dp)
                     .padding(24.dp),
-                contentAlignment = Alignment.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
                 Text(
                     "No conversions yet",
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Your recent conversions will appear here.\nCopy a result to save it automatically.",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
         } else {
@@ -160,7 +168,9 @@ private fun HistoryRow(entry: HistoryEntry, categories: List<UnitCategory>, onCl
 @Composable
 fun SettingsSheet(
     precision: Precision,
+    scientific: Boolean,
     onPrecision: (Precision) -> Unit,
+    onScientific: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -181,37 +191,62 @@ fun SettingsSheet(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 8.dp),
         )
-        // Numeric options on one row, "Auto" on its own full-width row below.
+        // All 6 options as equal-sized chips in a 2×3 grid.
+        val all = Precision.entries.toList()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            all.chunked(3).forEach { rowItems ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowItems.forEach { p ->
+                        PrecisionChip(
+                            label = p.label,
+                            selected = p == precision,
+                            onClick = { onPrecision(p) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
+        Text(
+            text = "Auto removes trailing zeros and keeps up to ~6 significant figures.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 10.dp),
+        )
+
+        // Number format toggle: Standard / Scientific.
+        Text(
+            text = "Number format",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp),
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Precision.entries.filter { it != Precision.AUTO }.forEach { p ->
-                PrecisionChip(
-                    label = p.label,
-                    selected = p == precision,
-                    onClick = { onPrecision(p) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-        ) {
             PrecisionChip(
-                label = "Auto",
-                selected = precision == Precision.AUTO,
-                onClick = { onPrecision(Precision.AUTO) },
-                modifier = Modifier.fillMaxWidth(),
+                label = "Standard",
+                selected = !scientific,
+                onClick = { onScientific(false) },
+                modifier = Modifier.weight(1f),
+            )
+            PrecisionChip(
+                label = "Scientific",
+                selected = scientific,
+                onClick = { onScientific(true) },
+                modifier = Modifier.weight(1f),
             )
         }
         Text(
-            text = "Auto removes trailing zeros and keeps up to ~6 significant figures.",
+            text = "Scientific shows values like 1.5×10¹⁴ — great for very large or small results.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 10.dp),
@@ -270,4 +305,41 @@ private fun PrecisionChip(
             Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
         }
     }
+}
+
+/**
+ * Confirms WHAT will be shared before opening the system share sheet — shows the
+ * exact multi-line snapshot and offers Share or Copy.
+ */
+@Composable
+fun SharePreviewDialog(
+    text: String,
+    onShare: () -> Unit,
+    onCopy: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Share conversion") },
+        text = {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onShare) { Text("Share") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onCopy) { Text("Copy") }
+        },
+    )
 }

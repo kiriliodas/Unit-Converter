@@ -63,9 +63,12 @@ fun UnitPickerSheet(
     selected: UnitDef,
     onSelect: (UnitDef) -> Unit,
     onDismiss: () -> Unit,
+    otherUnit: UnitDef? = null,
+    otherLabel: String? = null,
 ) {
     if (!expanded) return
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Open at partial height so it clearly reads as a bottom sheet (drag for more).
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
     var query by remember { mutableStateOf("") }
     val filtered = remember(query, units) {
@@ -87,7 +90,6 @@ fun UnitPickerSheet(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
         )
-        // Search / filter — useful when a category has many units.
         SearchField(
             query = query,
             onQueryChange = { query = it },
@@ -102,6 +104,9 @@ fun UnitPickerSheet(
                 UnitRow(
                     unit = unit,
                     selected = unit.id == selected.id,
+                    // Mark the OTHER side's unit (e.g. the From unit while picking
+                    // To) with a subtle outline so it's not mistaken for free.
+                    otherTag = if (otherUnit != null && unit.id == otherUnit.id) otherLabel else null,
                     onClick = { onSelect(unit) },
                 )
             }
@@ -164,6 +169,7 @@ private fun SearchField(
 private fun UnitRow(
     unit: UnitDef,
     selected: Boolean,
+    otherTag: String?,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -179,11 +185,16 @@ private fun UnitRow(
     val subContent = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
     else MaterialTheme.colorScheme.onSurfaceVariant
 
+    val border = if (otherTag != null && !selected)
+        androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    else null
+
     Surface(
         onClick = onClick,
         interactionSource = interaction,
         shape = RoundedCornerShape(20.dp),
         color = container,
+        border = border,
         modifier = Modifier
             .fillMaxWidth()
             .then(pressSqueeze(interaction, pressedScale = 0.98f)),
@@ -206,6 +217,21 @@ private fun UnitRow(
                     style = MaterialTheme.typography.labelMedium,
                     color = subContent,
                 )
+            }
+            // Tag showing this unit is already used on the other side.
+            if (otherTag != null) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Text(
+                        text = otherTag,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
             }
             AnimatedVisibility(
                 visible = selected,

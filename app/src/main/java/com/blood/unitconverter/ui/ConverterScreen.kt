@@ -59,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -90,9 +91,15 @@ fun ConverterScreen(vm: ConverterViewModel) {
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val precision by vm.precision.collectAsState()
+    val scientific by vm.scientific.collectAsState()
     val favorites by vm.favorites.collectAsState()
     var showHistory by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var sharePreview by remember { mutableStateOf<String?>(null) }
+
+    // Shared list state so we can scroll the results back to the top whenever a
+    // unit picker is dismissed (the user expects to see the input + top result).
+    val resultsListState = rememberLazyListState()
 
     fun copy(unit: UnitDef, value: String) {
         if (value.isEmpty()) return
@@ -103,17 +110,8 @@ fun ConverterScreen(vm: ConverterViewModel) {
         scope.launch { snackbar.showSnackbar("Copied $text") }
     }
 
-    fun share() {
-        val text = vm.shareText(precision)
-        if (text.isBlank()) {
-            scope.launch { snackbar.showSnackbar("Type a value to share") }
-            return
-        }
-        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(android.content.Intent.EXTRA_TEXT, text)
-        }
-        context.startActivity(android.content.Intent.createChooser(intent, "Share conversion"))
+    fun scrollTop() {
+        scope.launch { resultsListState.animateScrollToItem(0) }
     }
 
     Scaffold(
@@ -132,7 +130,14 @@ fun ConverterScreen(vm: ConverterViewModel) {
             Header(
                 showTagline = vm.showTagline,
                 historyCount = vm.history.collectAsState().value.size,
-                onShare = { share() },
+                onShare = {
+                    val text = vm.shareText(precision, scientific)
+                    if (text.isBlank()) {
+                        scope.launch { snackbar.showSnackbar("Type a value to share") }
+                    } else {
+                        sharePreview = text // show preview before sending
+                    }
+                },
                 onHistory = { showHistory = true },
                 onSettings = { showSettings = true },
             )
@@ -140,24 +145,31 @@ fun ConverterScreen(vm: ConverterViewModel) {
             CategorySelector(vm)
 
             // Tightly grouped input + unit pickers.
-            InputCard(vm, precision, haptics)
+            InputCard(vm, haptics, onPickerDismiss = { scrollTop() })
 
             // PRIMARY RESULT AREA — all units live. Tap = retarget, long-press =
             // use as input, star = pin, copy icon = copy.
             AllResultsList(
                 vm = vm,
                 precision = precision,
+                scientific = scientific,
                 favorites = favorites,
+                listState = resultsListState,
                 onCopy = { unit, value -> copy(unit, value) },
                 onPickTarget = { unit ->
                     vm.onSelectTo(unit)
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    scrollTop()
                 },
                 onReverse = { unit, value ->
                     vm.setAsInput(unit, value)
+                    scrollTop()
                     scope.launch { snackbar.showSnackbar("Set ${unit.displayName} as input") }
                 },
-                onToggleFav = { unit -> vm.toggleFavorite(unit) },
+                onToggleFav = { unit ->
+                    vm.toggleFavorite(unit)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -178,8 +190,29 @@ fun ConverterScreen(vm: ConverterViewModel) {
     if (showSettings) {
         SettingsSheet(
             precision = precision,
+            scientific = scientific,
             onPrecision = { vm.onSetPrecision(it) },
+            onScientific = { vm.onSetScientific(it) },
             onDismiss = { showSettings = false },
+        )
+    }
+    sharePreview?.let { preview ->
+        SharePreviewDialog(
+            text = preview,
+            onShare = {
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TEXT, preview)
+                }
+                context.startActivity(android.content.Intent.createChooser(intent, "Share conversion"))
+                sharePreview = null
+            },
+            onCopy = {
+                clipboard.setText(AnnotatedString(preview))
+                sharePreview = null
+                scope.launch { snackbar.showSnackbar("Copied to clipboard") }
+            },
+            onDismiss = { sharePreview = null },
         )
     }
 }
@@ -355,8 +388,8 @@ private fun ExpressiveCategoryChip(label: String, selected: Boolean, onClick: ()
 @Composable
 private fun InputCard(
     vm: ConverterViewModel,
-    precision: Precision,
     haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onPickerDismiss: () -> Unit,
 ) {
     var swapToggles by remember { mutableStateOf(0) }
     val rotation by animateFloatAsState(
@@ -365,6 +398,7 @@ private fun InputCard(
         label = "swapRotation",
     )
     var fromExpanded by remember { mutableStateOf(false) }
+    var toExpanded by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -379,44 +413,72 @@ private fun InputCard(
                 onChange = vm::onInputChange,
                 onUnitClick = { fromExpanded = true },
             )
-            Spacer(Modifier.height(14.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            Spacer(Modifier.height(12.dp))
+
+            // Grouped "Show result in" sub-card: label + [swap] + [To selector].
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                MorphIconButton(
-                    onClick = {
-                        vm.onSwap()
-                        swapToggles++
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    },
-                    size = 56.dp, // ≥48dp touch target
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.CompareArrows,
-                        contentDescription = "Swap from and to units",
-                        modifier = Modifier
-                            .size(24.dp)
-                            .graphicsLayer { rotationZ = rotation },
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    Text(
+                        text = "Highlight result in",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
                     )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        // Swap, vertically centered with the To selector.
+                        MorphIconButton(
+                            onClick = {
+                                vm.onSwap()
+                                swapToggles++
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            size = 52.dp,
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.CompareArrows,
+                                contentDescription = "Swap from and to units",
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .graphicsLayer { rotationZ = rotation },
+                            )
+                        }
+                        UnitPickerButton(
+                            selected = vm.toUnit,
+                            onClick = { toExpanded = true },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
-                UnitColumn(
-                    label = "To (highlighted result)",
-                    units = vm.selectedCategory.units,
-                    selected = vm.toUnit,
-                    onSelect = vm::onSelectTo,
-                    modifier = Modifier.weight(1f),
-                )
             }
         }
     }
 
+    // From picker — scroll results to top on dismiss.
     UnitPickerSheet(
         expanded = fromExpanded,
         units = vm.selectedCategory.units,
         selected = vm.fromUnit,
-        onSelect = { vm.onSelectFrom(it); fromExpanded = false },
-        onDismiss = { fromExpanded = false },
+        otherUnit = vm.toUnit,
+        otherLabel = "To",
+        onSelect = { vm.onSelectFrom(it); fromExpanded = false; onPickerDismiss() },
+        onDismiss = { fromExpanded = false; onPickerDismiss() },
+    )
+    // To picker.
+    UnitPickerSheet(
+        expanded = toExpanded,
+        units = vm.selectedCategory.units,
+        selected = vm.toUnit,
+        otherUnit = vm.fromUnit,
+        otherLabel = "From",
+        onSelect = { vm.onSelectTo(it); toExpanded = false; onPickerDismiss() },
+        onDismiss = { toExpanded = false; onPickerDismiss() },
     )
 }
 
@@ -446,6 +508,12 @@ private fun ValueField(
         animationSpec = Motion.spatialExpressive(),
         label = "fieldErrorScale",
     )
+
+    // Auto-focus the field + open the keyboard on first launch.
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        runCatching { focusRequester.requestFocus() }
+    }
 
     Surface(
         shape = RoundedCornerShape(20.dp),
@@ -483,7 +551,9 @@ private fun ValueField(
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
                 )
             }
             Spacer(Modifier.width(8.dp))
@@ -521,41 +591,18 @@ private fun ValueField(
 }
 
 @Composable
-private fun UnitColumn(
-    label: String,
-    units: List<UnitDef>,
+private fun UnitPickerButton(
     selected: UnitDef,
-    onSelect: (UnitDef) -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    Column(modifier = modifier) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
-        )
-        UnitPickerButton(selected = selected, onClick = { expanded = true })
-        UnitPickerSheet(
-            expanded = expanded,
-            units = units,
-            selected = selected,
-            onSelect = { onSelect(it); expanded = false },
-            onDismiss = { expanded = false },
-        )
-    }
-}
-
-@Composable
-private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
         interactionSource = interaction,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        modifier = Modifier
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = modifier
             .fillMaxWidth()
             .then(pressSqueeze(interaction, pressedScale = 0.97f)),
     ) {
@@ -590,6 +637,12 @@ private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
                     )
                 }
             }
+            Icon(
+                Icons.Rounded.ArrowDropDown,
+                contentDescription = "Change unit",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }
@@ -605,14 +658,16 @@ private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
 private fun AllResultsList(
     vm: ConverterViewModel,
     precision: Precision,
+    scientific: Boolean,
     favorites: Set<String>,
+    listState: androidx.compose.foundation.lazy.LazyListState,
     onCopy: (UnitDef, String) -> Unit,
     onPickTarget: (UnitDef) -> Unit,
     onReverse: (UnitDef, String) -> Unit,
     onToggleFav: (UnitDef) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val rows = vm.allResults(precision, favorites)
+    val items = vm.resultItems(precision, scientific, favorites)
     val hasInput = vm.input.isNotBlank() && !vm.hasError
 
     Surface(
@@ -637,22 +692,62 @@ private fun AllResultsList(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                items(rows, key = { it.unit.id }) { row ->
-                    ResultRow(
-                        row = row,
-                        onSelect = { onPickTarget(row.unit) },
-                        onReverse = { onReverse(row.unit, row.value) },
-                        onCopy = { onCopy(row.unit, row.value) },
-                        onToggleFav = { onToggleFav(row.unit) },
-                        modifier = Modifier.animateItem(),
-                    )
+                items(
+                    items,
+                    key = { item ->
+                        when (item) {
+                            is ConverterViewModel.ResultItem.Header -> "header:${item.title}"
+                            is ConverterViewModel.ResultItem.Row -> "row:${item.data.unit.id}"
+                        }
+                    },
+                ) { item ->
+                    when (item) {
+                        is ConverterViewModel.ResultItem.Header -> SectionHeader(
+                            title = item.title,
+                            modifier = Modifier.animateItem(),
+                        )
+                        is ConverterViewModel.ResultItem.Row -> ResultRow(
+                            row = item.data,
+                            onSelect = { onPickTarget(item.data.unit) },
+                            onReverse = { onReverse(item.data.unit, item.data.value) },
+                            onCopy = { onCopy(item.data.unit, item.data.value) },
+                            onToggleFav = { onToggleFav(item.data.unit) },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 14.dp, top = 10.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (title == "Starred") {
+            Icon(
+                Icons.Rounded.Star,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -761,6 +856,13 @@ private fun IconToggle(
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
+    // Springy pop when the filled state flips (star ☆ → ★).
+    val pop by animateFloatAsState(
+        targetValue = if (filled) 1f else 0f,
+        animationSpec = Motion.spatialExpressive(),
+        label = "starPop",
+    )
+    val scale = 1f + 0.25f * pop * (1f - pop) * 4f // peaks mid-transition
     Surface(
         onClick = onClick,
         interactionSource = interaction,
@@ -775,7 +877,9 @@ private fun IconToggle(
                 if (filled) iconFilled else iconOutline,
                 contentDescription = description,
                 tint = if (filled) MaterialTheme.colorScheme.primary else tint,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier
+                    .size(18.dp)
+                    .graphicsLayer { scaleX = scale; scaleY = scale },
             )
         }
     }

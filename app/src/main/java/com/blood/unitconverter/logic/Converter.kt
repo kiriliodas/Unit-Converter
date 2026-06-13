@@ -52,12 +52,18 @@ object Converter {
      *  - an empty/partial input (returns null so the UI can show a blank result)
      */
     fun parse(input: String): BigDecimal? {
-        val cleaned = input
+        var cleaned = input
             .replace("\u2212", "-")   // proper minus -> ascii
             .replace("\u202F", "")    // narrow no-break space
             .replace(" ", "")
-            .replace(",", ".")
             .trim()
+        // Disambiguate ',' : if there's also a '.', treat ',' as grouping (drop
+        // it); otherwise treat a lone ',' as a decimal separator.
+        cleaned = if (cleaned.contains('.')) {
+            cleaned.replace(",", "")
+        } else {
+            cleaned.replace(",", ".")
+        }
         if (cleaned.isEmpty() || cleaned == "-" || cleaned == "." || cleaned == "-.") return null
         return try {
             BigDecimal(cleaned)
@@ -73,22 +79,29 @@ object Converter {
     /**
      * Formats a result for display.
      *
-     *  - Only the INTEGER part is grouped in 3-digit blocks (e.g. 1 234 567.89).
-     *    The fractional part is NEVER grouped — mid-decimal spaces are confusing.
+     *  - Only the INTEGER part is grouped, with COMMAS (e.g. 1,234,567.89). The
+     *    fractional part is never grouped.
      *  - [precision] controls decimals (FIXED rounds exactly; AUTO trims noise).
-     *  - Truly extreme magnitudes fall back to scientific notation so the value
-     *    is never lost; the UI also auto-shrinks the font before that kicks in.
+     *  - [scientific] forces scientific notation (e.g. 1.5×10¹⁴) — a Settings
+     *    option for power users / very large or small numbers.
+     *  - Even in Standard mode, truly extreme magnitudes fall back to scientific
+     *    so the value is never lost; the UI also auto-shrinks the font first.
      *  - Uses a proper minus sign (U+2212).
      */
-    fun format(value: BigDecimal, precision: Precision = Precision.AUTO): String {
+    fun format(
+        value: BigDecimal,
+        precision: Precision = Precision.AUTO,
+        scientific: Boolean = false,
+    ): String {
         if (value.signum() == 0) return "0"
 
         val abs = value.abs()
-        // Only go scientific for genuinely enormous / minuscule magnitudes.
-        val useScientific = abs >= BigDecimal("1E18") || abs < BigDecimal("1E-9")
-        if (useScientific) {
+        val forceSci = scientific ||
+            abs >= BigDecimal("1E18") || abs < BigDecimal("1E-9")
+        if (forceSci) {
             val sci = DecimalFormat("0.######E0", sciSymbols)
-            return sci.format(value).replace("-", MINUS)
+            // Render as m×10^e for readability.
+            return prettyScientific(sci.format(value))
         }
 
         val scaled: BigDecimal = if (precision.fixedDigits != null) {
@@ -99,6 +112,26 @@ object Converter {
 
         val plain = scaled.stripTrailingZeros().toPlainString()
         return groupIntegerOnly(plain)
+    }
+
+    /** Turns "1.5E14" / "-2E-7" into "1.5×10¹⁴" / "−2×10⁻⁷". */
+    private fun prettyScientific(raw: String): String {
+        val s = raw.replace("E", "e")
+        val eIdx = s.indexOf('e')
+        if (eIdx < 0) return s.replace("-", MINUS)
+        val mantissa = s.substring(0, eIdx).replace("-", MINUS)
+        val expPart = s.substring(eIdx + 1)
+        val expNeg = expPart.startsWith("-")
+        val expDigits = expPart.trimStart('+', '-')
+        val sup = expDigits.map { superscript(it) }.joinToString("")
+        val supSign = if (expNeg) "\u207B" else ""
+        return "$mantissa\u00D710$supSign$sup"
+    }
+
+    private fun superscript(c: Char): Char = when (c) {
+        '0' -> '\u2070'; '1' -> '\u00B9'; '2' -> '\u00B2'; '3' -> '\u00B3'
+        '4' -> '\u2074'; '5' -> '\u2075'; '6' -> '\u2076'; '7' -> '\u2077'
+        '8' -> '\u2078'; '9' -> '\u2079'; else -> c
     }
 
     /**
@@ -117,7 +150,7 @@ object Converter {
         return value.setScale(maxDecimals, RoundingMode.HALF_UP)
     }
 
-    /** Groups ONLY the integer part in 3-digit blocks; fraction left intact. */
+    /** Groups ONLY the integer part with COMMAS; fraction left intact. */
     private fun groupIntegerOnly(plain: String): String {
         val negative = plain.startsWith("-")
         val unsigned = if (negative) plain.substring(1) else plain
@@ -128,7 +161,7 @@ object Converter {
         val sb = StringBuilder()
         val n = intPart.length
         for (i in 0 until n) {
-            if (i > 0 && (n - i) % 3 == 0) sb.append(' ')
+            if (i > 0 && (n - i) % 3 == 0) sb.append(',')
             sb.append(intPart[i])
         }
         sb.append(fracPart)

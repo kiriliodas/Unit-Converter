@@ -33,6 +33,7 @@ class SettingsRepository(private val context: Context) {
         val HISTORY = stringPreferencesKey("history_json")
         val LAST = stringPreferencesKey("last_selection_json")
         val FAVORITES = stringPreferencesKey("favorites_json")
+        val SCIENTIFIC = stringPreferencesKey("scientific") // "1"/"0"
     }
 
     // ---- Precision -----------------------------------------------------------
@@ -43,6 +44,16 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setPrecision(p: Precision) {
         context.dataStore.edit { it[Keys.PRECISION] = p.name }
+    }
+
+    // ---- Scientific notation -------------------------------------------------
+
+    val scientific: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.SCIENTIFIC] == "1"
+    }
+
+    suspend fun setScientific(on: Boolean) {
+        context.dataStore.edit { it[Keys.SCIENTIFIC] = if (on) "1" else "0" }
     }
 
     // ---- Header tagline (hide after first session) ---------------------------

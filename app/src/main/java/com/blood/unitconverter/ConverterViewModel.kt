@@ -45,6 +45,9 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
     val precision: StateFlow<Precision> =
         repo.precision.stateIn(viewModelScope, SharingStarted.Eagerly, Precision.AUTO)
 
+    val scientific: StateFlow<Boolean> =
+        repo.scientific.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /** Snapshotted once at launch: true only on the very first session. */
     var showTagline by mutableStateOf(true)
         private set
@@ -76,7 +79,7 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
      *  the UI recomposes when the user changes the decimal-places setting. */
     fun result(p: Precision = precision.value): String {
         val parsed = Converter.parse(input) ?: return ""
-        return Converter.format(Converter.convert(parsed, fromUnit, toUnit), p)
+        return Converter.format(Converter.convert(parsed, fromUnit, toUnit), p, scientific.value)
     }
 
     val hasError: Boolean
@@ -90,41 +93,59 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
         val isFavorite: Boolean,
     )
 
+    /** A list item: either a section header or a result row. */
+    sealed interface ResultItem {
+        data class Header(val title: String) : ResultItem
+        data class Row(val data: RowData) : ResultItem
+    }
+
     /**
-     * ALL units in the current category converted from the current From value.
-     * Order: TARGET (To) first → favorites → the rest (catalog order).
+     * The all-units list, grouped into sections:
+     *   [Target row] → "Starred" header + starred rows → "All units" header + rest.
+     * Headers are omitted when a section is empty.
      */
-    fun allResults(p: Precision, favs: Set<String>): List<RowData> {
+    fun resultItems(p: Precision, sci: Boolean, favs: Set<String>): List<ResultItem> {
         val parsed = Converter.parse(input) ?: return emptyList()
         val rows = selectedCategory.units.map { unit ->
             RowData(
                 unit = unit,
-                value = Converter.format(Converter.convert(parsed, fromUnit, unit), p),
+                value = Converter.format(Converter.convert(parsed, fromUnit, unit), p, sci),
                 isTarget = unit.id == toUnit.id,
                 isFavorite = favKey(unit) in favs,
             )
         }
-        return rows.sortedWith(
-            compareByDescending<RowData> { it.isTarget }
-                .thenByDescending { it.isFavorite }
-        )
+        val target = rows.firstOrNull { it.isTarget }
+        val starred = rows.filter { it.isFavorite && !it.isTarget }
+        val rest = rows.filter { !it.isFavorite && !it.isTarget }
+
+        val items = mutableListOf<ResultItem>()
+        target?.let { items += ResultItem.Row(it) }
+        if (starred.isNotEmpty()) {
+            items += ResultItem.Header("Starred")
+            starred.forEach { items += ResultItem.Row(it) }
+        }
+        if (rest.isNotEmpty()) {
+            if (starred.isNotEmpty() || target != null) items += ResultItem.Header("All units")
+            rest.forEach { items += ResultItem.Row(it) }
+        }
+        return items
     }
 
     /** Clipboard text — number only, with an ASCII sign and optional symbol. */
     fun copyText(value: String, withSymbol: Boolean, symbol: String): String {
-        val number = value.replace(" ", "").replace(Converter.MINUS, "-")
+        val number = value.replace(",", "").replace(Converter.MINUS, "-")
         return if (withSymbol) "$number $symbol" else number
     }
 
     /** A multi-line snapshot of the current conversion for the Share sheet. */
-    fun shareText(p: Precision): String {
+    fun shareText(p: Precision, sci: Boolean): String {
         val parsed = Converter.parse(input) ?: return ""
         val header = "${input.replace(Converter.MINUS, "-")} ${fromUnit.symbol} ="
         val lines = selectedCategory.units
             .filter { it.id != fromUnit.id }
             .joinToString("\n") { u ->
-                val v = Converter.format(Converter.convert(parsed, fromUnit, u), p)
-                    .replace(" ", "").replace(Converter.MINUS, "-")
+                val v = Converter.format(Converter.convert(parsed, fromUnit, u), p, sci)
+                    .replace(",", "").replace(Converter.MINUS, "-")
                 "  $v ${u.symbol}  (${u.displayName})"
             }
         return "$header\n$lines\n— Converter (offline)"
@@ -134,10 +155,16 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.toggleFavorite(favKey(unit)) }
     }
 
-    /** Reverse lookup: take a result row's value+unit and make it the new input. */
-    fun setAsInput(unit: UnitDef, value: String) {
-        // Use the plain numeric value (strip grouping) as the new From input.
-        input = value.replace(" ", "").replace(Converter.MINUS, "-")
+    /**
+     * Reverse lookup: make [unit] the new From, with the value it currently
+     * shows. We RECOMPUTE the plain number from the source input (rather than
+     * parsing the formatted string) so it works even in scientific mode.
+     */
+    fun setAsInput(unit: UnitDef, @Suppress("UNUSED_PARAMETER") value: String) {
+        val parsed = Converter.parse(input) ?: return
+        val converted = Converter.convert(parsed, fromUnit, unit)
+        // Plain, parseable representation (no grouping, ascii minus).
+        input = converted.stripTrailingZeros().toPlainString()
         fromUnit = unit
         persistSelection()
     }
@@ -168,6 +195,10 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onSetPrecision(p: Precision) {
         viewModelScope.launch { repo.setPrecision(p) }
+    }
+
+    fun onSetScientific(on: Boolean) {
+        viewModelScope.launch { repo.setScientific(on) }
     }
 
     /** Persist the current conversion to history (called on copy / explicit save). */
