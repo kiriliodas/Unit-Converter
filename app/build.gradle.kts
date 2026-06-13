@@ -13,8 +13,8 @@ android {
         applicationId = "com.blood.unitconverter"
         minSdk = 24
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.5.1"
+        versionCode = 9
+        versionName = "1.5.2"
 
         vectorDrawables {
             useSupportLibrary = true
