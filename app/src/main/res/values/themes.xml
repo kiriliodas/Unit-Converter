@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Base theme is a transparent-status-bar Material 3 theme.
+      All real colors come from the Compose dynamicColorScheme (Material You),
+      so this XML theme only needs to set up the window edge-to-edge surface.
+    -->
+    <style name="Theme.UnitConverter" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

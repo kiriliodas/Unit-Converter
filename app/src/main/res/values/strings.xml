@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Converter</string>
+    <string name="placeholder_value">Enter value</string>
+    <string name="swap_units">Swap units</string>
+    <string name="clear">Clear</string>
+    <string name="copy_result">Copy result</string>
+    <string name="from">From</string>
+    <string name="to">To</string>
+    <string name="result">Result</string>
+</resources>
