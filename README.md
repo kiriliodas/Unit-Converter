@@ -61,6 +61,24 @@ app/src/main/java/com/blood/unitconverter/
   ui/theme/                  color, type (Fredoka), shape, motion, theme
 ```
 
+## Download (Releases)
+
+Grab a ready-to-install APK from the repo's **[Releases](../../releases)** tab.
+
+To cut a new release, push a version tag — CI builds the APK and publishes a
+GitHub Release with it attached automatically:
+
+```bash
+git tag v1.5.1
+git push origin v1.5.1
+```
+
+(You can also trigger the **Release APK** workflow manually from the Actions tab.)
+
+> The APK is signed with the standard debug key so it installs immediately
+> (you may need to allow "install from unknown sources"). It is **not** signed
+> with a Play Store upload key.
+
 ## Build it on GitHub (no local Android SDK needed)
 
 1. Create a new GitHub repository.

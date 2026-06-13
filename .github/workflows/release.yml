@@ -1,0 +1,73 @@
+name: Release APK
+
+# Publishes a GitHub Release with the built APK attached whenever you push a
+# version tag like v1.5.1. People can then download + install the APK straight
+# from the repo's "Releases" tab.
+#
+#   git tag v1.5.1
+#   git push origin v1.5.1
+#
+# You can also trigger it manually from the Actions tab (workflow_dispatch),
+# which creates a release for the latest commit using a timestamped tag.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create the Release and upload assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Locate APK
+        id: apk
+        run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          echo "Found APK at: $APK"
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          # A friendly, versioned filename for the release asset.
+          VER="${GITHUB_REF_NAME}"
+          cp "$APK" "Converter-${VER}.apk"
+          echo "asset=Converter-${VER}.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # For tag pushes, GitHub Releases use the tag name automatically.
+          # For manual runs (no tag), create one from the run number.
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Manual build {0}', github.run_number) }}
+          generate_release_notes: true
+          files: ${{ steps.apk.outputs.asset }}
+          body: |
+            ### Converter — offline unit converter
+
+            Download **`${{ steps.apk.outputs.asset }}`** below and install it on
+            your Android device (you may need to allow installing from unknown
+            sources).
+
+            - 100% offline · no accounts · no tracking · no `INTERNET` permission.
+            - Signed with the standard debug key (installs immediately;
+              not a Play Store upload key).
