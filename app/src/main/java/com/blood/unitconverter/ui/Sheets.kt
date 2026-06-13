@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -29,10 +27,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.blood.unitconverter.data.HistoryEntry
 import com.blood.unitconverter.data.UnitCategory
 import com.blood.unitconverter.logic.Precision
 import com.blood.unitconverter.ui.morph.pressSqueeze
+import com.blood.unitconverter.ui.theme.FaIcons
 
 /** Recent conversions (on-device only). Tap to restore; sweep to clear all. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,12 +72,12 @@ fun HistorySheet(
                     modifier = Modifier.then(pressSqueeze(interaction)),
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Rounded.DeleteSweep, contentDescription = null, modifier = Modifier.height(18.dp))
-                        Spacer(Modifier.height(0.dp))
-                        Text("  Clear", style = MaterialTheme.typography.labelLarge)
+                        FaIcon(FaIcons.TRASH, contentDescription = null, size = 15.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Clear", style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }
@@ -194,7 +194,13 @@ fun SettingsSheet(
             text = "100% offline · no accounts · no tracking. Settings & history are stored only on this device.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 8.dp),
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 4.dp),
+        )
+        Text(
+            text = "Typeface: Fredoka (SIL OFL 1.1). Icons: Font Awesome Free (CC BY 4.0, fonts SIL OFL 1.1) — fontawesome.com.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 8.dp),
         )
         Spacer(Modifier.height(16.dp))
     }

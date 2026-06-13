@@ -78,17 +78,23 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * ALL units in the current category converted from the current From value —
-     * the Google-style live list. Returns triples of (unit, formattedValue, isFrom).
+     * the Google-style live list. The selected TARGET (To) unit is pinned FIRST
+     * and flagged so the UI can show it big + blue at the top.
+     * Returns triples of (unit, formattedValue, isTarget).
      */
     fun allResults(p: Precision = precision.value): List<Triple<UnitDef, String, Boolean>> {
         val parsed = Converter.parse(input) ?: return emptyList()
-        return selectedCategory.units.map { unit ->
+        val converted = selectedCategory.units.map { unit ->
             Triple(
                 unit,
                 Converter.format(Converter.convert(parsed, fromUnit, unit), p),
-                unit.id == fromUnit.id,
+                unit.id == toUnit.id,
             )
         }
+        // Pin the target unit to the top, keep the rest in catalog order.
+        val target = converted.firstOrNull { it.third }
+        val rest = converted.filterNot { it.third }
+        return if (target != null) listOf(target) + rest else converted
     }
 
     /** Plain (un-grouped) result text for clipboard — number only. */

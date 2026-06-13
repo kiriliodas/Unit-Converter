@@ -23,11 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -42,8 +38,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.blood.unitconverter.data.UnitDef
 import com.blood.unitconverter.ui.morph.pressSqueeze
+import com.blood.unitconverter.ui.theme.FaIcons
 import com.blood.unitconverter.ui.theme.Motion
 
 /**
@@ -128,13 +126,13 @@ private fun SearchField(
                 .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                Icons.Rounded.Search,
+            FaIcon(
+                FaIcons.SEARCH,
                 contentDescription = null,
+                size = 16.sp,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(12.dp))
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 if (query.isEmpty()) {
                     Text(
@@ -218,9 +216,10 @@ private fun UnitRow(
                         modifier = Modifier.size(28.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            Icons.Rounded.Check,
+                        FaIcon(
+                            FaIcons.CHECK,
                             contentDescription = "Selected",
+                            size = 16.sp,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
                     }

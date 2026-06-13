@@ -31,13 +31,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.SwapVert
-import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -66,12 +59,14 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.blood.unitconverter.ConverterViewModel
 import com.blood.unitconverter.data.UnitDef
 import com.blood.unitconverter.logic.Precision
 import com.blood.unitconverter.ui.morph.MorphIconButton
 import com.blood.unitconverter.ui.morph.pressSqueeze
 import com.blood.unitconverter.ui.theme.DisplayNumberStyle
+import com.blood.unitconverter.ui.theme.FaIcons
 import com.blood.unitconverter.ui.theme.InputNumberStyle
 import com.blood.unitconverter.ui.theme.Motion
 import kotlinx.coroutines.launch
@@ -125,6 +120,10 @@ fun ConverterScreen(vm: ConverterViewModel) {
                 vm = vm,
                 precision = precision,
                 onCopy = { unit, value -> copy(unit, value) },
+                onPickTarget = { unit ->
+                    vm.onSelectTo(unit)
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -172,15 +171,15 @@ private fun Header(
                 )
             }
         }
-        HeaderAction(Icons.Rounded.History, "History", onHistory)
+        HeaderAction(FaIcons.HISTORY, "History", onHistory)
         Spacer(Modifier.width(4.dp))
-        HeaderAction(Icons.Rounded.Tune, "Settings", onSettings)
+        HeaderAction(FaIcons.SETTINGS, "Settings", onSettings)
     }
 }
 
 @Composable
 private fun HeaderAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    glyph: String,
     label: String,
     onClick: () -> Unit,
 ) {
@@ -190,12 +189,13 @@ private fun HeaderAction(
         interactionSource = interaction,
         shape = RoundedCornerShape(50),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .size(48.dp) // ≥48dp touch target
             .then(pressSqueeze(interaction)),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp))
+            FaIcon(glyph, contentDescription = label, size = 18.sp)
         }
     }
 }
@@ -333,9 +333,10 @@ private fun InputCard(
                     },
                     size = 56.dp, // ≥48dp touch target
                 ) {
-                    Icon(
-                        Icons.Rounded.SwapVert,
+                    FaIcon(
+                        FaIcons.SWAP,
                         contentDescription = "Swap units",
+                        size = 20.sp,
                         modifier = Modifier.graphicsLayer { rotationZ = rotation },
                     )
                 }
@@ -503,15 +504,17 @@ private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
 
 /**
  * ALL-UNITS LIVE LIST — the primary result surface. Every unit in the category
- * is converted from the current From value and shown at once. The active From
- * unit is highlighted. Tap any row to copy it (with its symbol). When there's no
- * input, rows are dimmed with a hint so "0" is never mistaken for a real result.
+ * is converted from the current From value and shown at once. The chosen TARGET
+ * unit is pinned to the TOP, shown big and BLUE. Tapping any row makes it the
+ * new target (it animates to the top + turns blue); the copy button copies that
+ * row. When there's no input, a hint shows so "0" is never mistaken for a result.
  */
 @Composable
 private fun AllResultsList(
     vm: ConverterViewModel,
     precision: Precision,
     onCopy: (UnitDef, String) -> Unit,
+    onPickTarget: (UnitDef) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val rows = vm.allResults(precision)
@@ -543,8 +546,15 @@ private fun AllResultsList(
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                items(rows, key = { it.first.id }) { (unit, value, isFrom) ->
-                    ResultRow(unit = unit, value = value, isFrom = isFrom, onCopy = { onCopy(unit, value) })
+                items(rows, key = { it.first.id }) { (unit, value, isTarget) ->
+                    ResultRow(
+                        unit = unit,
+                        value = value,
+                        isTarget = isTarget,
+                        onSelect = { onPickTarget(unit) },
+                        onCopy = { onCopy(unit, value) },
+                        modifier = Modifier.animateItem(),
+                    )
                 }
             }
         }
@@ -552,33 +562,52 @@ private fun AllResultsList(
 }
 
 @Composable
-private fun ResultRow(unit: UnitDef, value: String, isFrom: Boolean, onCopy: () -> Unit) {
+private fun ResultRow(
+    unit: UnitDef,
+    value: String,
+    isTarget: Boolean,
+    onSelect: () -> Unit,
+    onCopy: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val interaction = remember { MutableInteractionSource() }
-    Surface(
-        onClick = onCopy,
-        interactionSource = interaction,
-        shape = RoundedCornerShape(16.dp),
-        color = if (isFrom) MaterialTheme.colorScheme.primaryContainer
+    val container by animateColorAsState(
+        targetValue = if (isTarget) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier
+        animationSpec = Motion.effects(),
+        label = "rowColor",
+    )
+    val onContainer = if (isTarget) MaterialTheme.colorScheme.onPrimaryContainer
+    else MaterialTheme.colorScheme.onSurface
+    val onContainerSub = if (isTarget) MaterialTheme.colorScheme.onPrimaryContainer
+    else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Surface(
+        onClick = onSelect, // tap the row to make it the target (pins + blue)
+        interactionSource = interaction,
+        shape = RoundedCornerShape(if (isTarget) 22.dp else 16.dp),
+        color = container,
+        modifier = modifier
             .fillMaxWidth()
             .then(pressSqueeze(interaction, pressedScale = 0.98f)),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 60.dp)
-                .padding(horizontal = 18.dp, vertical = 10.dp),
+                .heightIn(min = if (isTarget) 76.dp else 60.dp)
+                .padding(horizontal = 18.dp, vertical = if (isTarget) 14.dp else 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
                     text = unit.displayName,
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (isFrom) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = onContainerSub,
                 )
-                Box(modifier = Modifier.heightIn(min = 32.dp), contentAlignment = Alignment.CenterStart) {
+                Box(
+                    modifier = Modifier.heightIn(min = if (isTarget) 40.dp else 32.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
                     AnimatedContent(
                         targetState = value,
                         transitionSpec = {
@@ -588,10 +617,10 @@ private fun ResultRow(unit: UnitDef, value: String, isFrom: Boolean, onCopy: () 
                     ) { v ->
                         Text(
                             text = v,
-                            style = if (isFrom) DisplayNumberStyle.copy(fontSize = MaterialTheme.typography.headlineSmall.fontSize)
-                            else InputNumberStyle,
-                            color = if (isFrom) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSurface,
+                            style = if (isTarget) DisplayNumberStyle.copy(
+                                fontSize = MaterialTheme.typography.displaySmall.fontSize,
+                            ) else InputNumberStyle,
+                            color = onContainer,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -602,17 +631,33 @@ private fun ResultRow(unit: UnitDef, value: String, isFrom: Boolean, onCopy: () 
             Text(
                 text = unit.symbol,
                 style = MaterialTheme.typography.titleSmall,
-                color = if (isFrom) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = onContainerSub,
             )
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                Icons.Rounded.ContentCopy,
-                contentDescription = "Copy ${unit.displayName}",
-                modifier = Modifier.size(18.dp),
-                tint = if (isFrom) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            Spacer(Modifier.width(6.dp))
+            // Dedicated copy control (the row tap selects; this copies).
+            CopyButton(
+                onClick = onCopy,
+                tint = onContainerSub,
+                description = "Copy ${unit.displayName}",
             )
+        }
+    }
+}
+
+@Composable
+private fun CopyButton(onClick: () -> Unit, tint: Color, description: String) {
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        shape = RoundedCornerShape(50),
+        color = Color.Transparent,
+        modifier = Modifier
+            .size(40.dp) // ≥40 inner, ample tap target
+            .then(pressSqueeze(interaction)),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            FaIcon(FaIcons.COPY, contentDescription = description, size = 16.sp, tint = tint)
         }
     }
 }

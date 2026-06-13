@@ -13,7 +13,12 @@ A premium, ultra-clean Android unit converter built with **Jetpack Compose**,
 
 ### Features
 - **All-units live list** (Google-style): type once, see every unit in the
-  category convert instantly. Tap any row to copy it (with its symbol).
+  category convert instantly. The chosen target unit is **pinned to the top and
+  shown big & blue**; tap any row to make it the new target (it springs to the
+  top), or tap its copy button to copy (with the unit symbol).
+- **Fredoka** typeface throughout + **Font Awesome** (subset) icons, both
+  bundled offline. Shifting result numbers use a monospace family so the layout
+  never jumps as you type.
 - **Smart number formatting**: grouped both sides of the decimal
   (`1 234 567.891 234`), significant-figure aware for tiny values.
 - **Adjustable precision**: Auto / 2 / 4 / 6 / 8 decimals (Settings).

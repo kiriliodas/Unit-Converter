@@ -28,7 +28,7 @@ private val FixedLineHeight = LineHeightStyle(
 
 val ExpressiveTypography = Typography(
     displayLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.Bold,
         fontSize = 57.sp,
         lineHeight = 64.sp,
@@ -36,49 +36,49 @@ val ExpressiveTypography = Typography(
         lineHeightStyle = FixedLineHeight,
     ),
     displayMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.Bold,
         fontSize = 45.sp,
         lineHeight = 52.sp,
         lineHeightStyle = FixedLineHeight,
     ),
     displaySmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.SemiBold,
         fontSize = 36.sp,
         lineHeight = 44.sp,
         lineHeightStyle = FixedLineHeight,
     ),
     headlineLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.SemiBold,
         fontSize = 32.sp,
         lineHeight = 40.sp,
         lineHeightStyle = FixedLineHeight,
     ),
     headlineMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.SemiBold,
         fontSize = 28.sp,
         lineHeight = 36.sp,
         lineHeightStyle = FixedLineHeight,
     ),
     headlineSmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.SemiBold,
         fontSize = 24.sp,
         lineHeight = 32.sp,
         lineHeightStyle = FixedLineHeight,
     ),
     titleLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         lineHeightStyle = FixedLineHeight,
     ),
     titleMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
         lineHeight = 24.sp,
@@ -86,7 +86,7 @@ val ExpressiveTypography = Typography(
         lineHeightStyle = FixedLineHeight,
     ),
     titleSmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
@@ -94,7 +94,7 @@ val ExpressiveTypography = Typography(
         lineHeightStyle = FixedLineHeight,
     ),
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
@@ -102,7 +102,7 @@ val ExpressiveTypography = Typography(
         lineHeightStyle = FixedLineHeight,
     ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
@@ -110,7 +110,7 @@ val ExpressiveTypography = Typography(
         lineHeightStyle = FixedLineHeight,
     ),
     labelLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         lineHeight = 20.sp,
@@ -118,7 +118,7 @@ val ExpressiveTypography = Typography(
         lineHeightStyle = FixedLineHeight,
     ),
     labelMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
@@ -126,7 +126,7 @@ val ExpressiveTypography = Typography(
         lineHeightStyle = FixedLineHeight,
     ),
     labelSmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Fredoka,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 16.sp,
@@ -136,16 +136,23 @@ val ExpressiveTypography = Typography(
 )
 
 /**
- * Tabular-figure variants for any text that displays shifting numbers (the live
- * input echo and the big result). Monospaced digits keep every glyph the same
- * width, so the layout NEVER reflows or jumps while the user types.
+ * Number styles for shifting numeric output (live input echo + results).
+ *
+ * Fredoka is a proportional font with NON-tabular digits (a "1" is much narrower
+ * than a "2"), which would make the result jump around as you type. To keep the
+ * layout rock-steady we render shifting numbers in a MONOSPACE family — every
+ * digit is the same width, so rows never reflow. Fredoka still styles all the
+ * surrounding labels/headers for the friendly, clean look.
  */
 val DisplayNumberStyle: TextStyle = ExpressiveTypography.displayMedium.copy(
+    fontFamily = FontFamily.Monospace,
+    fontWeight = FontWeight.Bold,
     fontFeatureSettings = "tnum",
-    // Slightly tighter line so the big result stays on one visual row.
     lineHeight = 1.1.em,
 )
 
 val InputNumberStyle: TextStyle = ExpressiveTypography.headlineMedium.copy(
+    fontFamily = FontFamily.Monospace,
+    fontWeight = FontWeight.SemiBold,
     fontFeatureSettings = "tnum",
 )
