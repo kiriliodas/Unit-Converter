@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
 
 /**
  * Holds all converter UI state. Conversion math is pure/in-memory; preferences
@@ -156,14 +155,13 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Reverse lookup: make [unit] the new From, with the value it currently
-     * shows. We RECOMPUTE the plain number from the source input (rather than
-     * parsing the formatted string) so it works even in scientific mode.
+     * Reverse lookup: make [unit] the new From, carrying over the value it
+     * currently shows. The plain number is RECOMPUTED from the source input
+     * (not parsed from the formatted string) so it works even in scientific mode.
      */
-    fun setAsInput(unit: UnitDef, @Suppress("UNUSED_PARAMETER") value: String) {
+    fun setAsInput(unit: UnitDef) {
         val parsed = Converter.parse(input) ?: return
         val converted = Converter.convert(parsed, fromUnit, unit)
-        // Plain, parseable representation (no grouping, ascii minus).
         input = converted.stripTrailingZeros().toPlainString()
         fromUnit = unit
         persistSelection()

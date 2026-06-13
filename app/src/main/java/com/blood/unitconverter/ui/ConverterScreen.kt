@@ -161,8 +161,8 @@ fun ConverterScreen(vm: ConverterViewModel) {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     scrollTop()
                 },
-                onReverse = { unit, value ->
-                    vm.setAsInput(unit, value)
+                onReverse = { unit ->
+                    vm.setAsInput(unit)
                     scrollTop()
                     scope.launch { snackbar.showSnackbar("Set ${unit.displayName} as input") }
                 },
@@ -663,7 +663,7 @@ private fun AllResultsList(
     listState: androidx.compose.foundation.lazy.LazyListState,
     onCopy: (UnitDef, String) -> Unit,
     onPickTarget: (UnitDef) -> Unit,
-    onReverse: (UnitDef, String) -> Unit,
+    onReverse: (UnitDef) -> Unit,
     onToggleFav: (UnitDef) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -714,7 +714,7 @@ private fun AllResultsList(
                         is ConverterViewModel.ResultItem.Row -> ResultRow(
                             row = item.data,
                             onSelect = { onPickTarget(item.data.unit) },
-                            onReverse = { onReverse(item.data.unit, item.data.value) },
+                            onReverse = { onReverse(item.data.unit) },
                             onCopy = { onCopy(item.data.unit, item.data.value) },
                             onToggleFav = { onToggleFav(item.data.unit) },
                             modifier = Modifier.animateItem(),

@@ -71,9 +71,6 @@ object UnitCatalog {
         fuelEconomy(),
     )
 
-    private val byId: Map<String, UnitCategory> = categories.associateBy { it.id }
-    fun categoryById(id: String): UnitCategory = byId.getValue(id)
-
     // ---- Length (base: metre) ------------------------------------------------
     private fun length() = UnitCategory(
         id = "length", displayName = "Length", iconKey = "length",

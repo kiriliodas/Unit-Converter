@@ -13,8 +13,8 @@ android {
         applicationId = "com.blood.unitconverter"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.5.0"
+        versionCode = 8
+        versionName = "1.5.1"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -23,8 +23,8 @@ android {
 
     buildTypes {
         release {
-            // Shrinking enabled for a lean, fast APK. No proguard rules needed
-            // beyond defaults since there is no reflection-heavy code.
+            // R8 code + resource shrinking for a lean, fast APK. The only custom
+            // keep rules are for kotlinx-serialization (see proguard-rules.pro).
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

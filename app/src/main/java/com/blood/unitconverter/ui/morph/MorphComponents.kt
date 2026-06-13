@@ -1,7 +1,6 @@
 package com.blood.unitconverter.ui.morph
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -14,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
@@ -23,9 +21,9 @@ import androidx.graphics.shapes.Morph
 import com.blood.unitconverter.ui.theme.Motion
 
 /**
- * A circular/squircle icon button whose silhouette MORPHS from a smooth circle
- * into an 8-point star while pressed, with a springy scale "squeeze". Releasing
- * lets it overshoot back to rest — the signature expressive touch feedback.
+ * An icon button whose silhouette MORPHS from a smooth circle into an 8-point
+ * star while pressed, with a springy scale "squeeze". Releasing lets it
+ * overshoot back to rest — the signature expressive touch feedback.
  */
 @Composable
 fun MorphIconButton(
@@ -74,9 +72,8 @@ fun MorphIconButton(
 }
 
 /**
- * A pressable surface that gently squeezes (spring scale) on touch. Used for the
- * pill action buttons and unit pickers to give every tap organic weight without
- * changing their outline shape.
+ * A pressable modifier that gently squeezes (spring scale) on touch, giving
+ * every tap organic weight without changing the component's outline.
  */
 @Composable
 fun pressSqueeze(
@@ -93,25 +90,4 @@ fun pressSqueeze(
         scaleX = scale
         scaleY = scale
     }
-}
-
-/**
- * A decorative morphing badge (circle ⇄ flower) that slowly breathes, used as a
- * lightweight "live / active" accent. Driven by spring-reversed progress passed
- * in by the caller so it stays in sync with app state.
- */
-@Composable
-fun MorphBadge(
-    progress: Float,
-    modifier: Modifier = Modifier,
-    size: Dp = 14.dp,
-    color: Color = MaterialTheme.colorScheme.primary,
-    morph: Morph = Morphs.circleToFlower,
-) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(MorphPolygonShape(morph, progress))
-            .background(color),
-    )
 }
