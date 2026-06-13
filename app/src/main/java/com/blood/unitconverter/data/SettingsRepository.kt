@@ -32,6 +32,7 @@ class SettingsRepository(private val context: Context) {
         val SHOW_TAGLINE = stringPreferencesKey("show_tagline") // "1"/"0"
         val HISTORY = stringPreferencesKey("history_json")
         val LAST = stringPreferencesKey("last_selection_json")
+        val FAVORITES = stringPreferencesKey("favorites_json")
     }
 
     // ---- Precision -----------------------------------------------------------
@@ -88,6 +89,24 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun clearHistory() {
         context.dataStore.edit { it.remove(Keys.HISTORY) }
+    }
+
+    // ---- Favorites (pinned unit ids, keyed "categoryId:unitId") --------------
+
+    val favorites: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        prefs[Keys.FAVORITES]?.let {
+            runCatching { json.decodeFromString<Set<String>>(it) }.getOrNull()
+        } ?: emptySet()
+    }
+
+    suspend fun toggleFavorite(key: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.FAVORITES]?.let {
+                runCatching { json.decodeFromString<Set<String>>(it) }.getOrNull()
+            } ?: emptySet()
+            val updated = if (key in current) current - key else current + key
+            prefs[Keys.FAVORITES] = json.encodeToString(updated)
+        }
     }
 }
 

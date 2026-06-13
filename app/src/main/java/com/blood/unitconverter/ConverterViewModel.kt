@@ -52,6 +52,12 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
     val history: StateFlow<List<HistoryEntry>> =
         repo.history.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** Favorite unit keys ("categoryId:unitId"). */
+    val favorites: StateFlow<Set<String>> =
+        repo.favorites.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    private fun favKey(unit: UnitDef) = "${selectedCategory.id}:${unit.id}"
+
     init {
         // Restore last-used category/units + tagline visibility on launch.
         viewModelScope.launch {
@@ -76,37 +82,70 @@ class ConverterViewModel(app: Application) : AndroidViewModel(app) {
     val hasError: Boolean
         get() = input.isNotBlank() && Converter.parse(input) == null
 
+    /** One row in the all-units result list. */
+    data class RowData(
+        val unit: UnitDef,
+        val value: String,
+        val isTarget: Boolean,
+        val isFavorite: Boolean,
+    )
+
     /**
-     * ALL units in the current category converted from the current From value —
-     * the Google-style live list. The selected TARGET (To) unit is pinned FIRST
-     * and flagged so the UI can show it big + blue at the top.
-     * Returns triples of (unit, formattedValue, isTarget).
+     * ALL units in the current category converted from the current From value.
+     * Order: TARGET (To) first → favorites → the rest (catalog order).
      */
-    fun allResults(p: Precision = precision.value): List<Triple<UnitDef, String, Boolean>> {
+    fun allResults(p: Precision, favs: Set<String>): List<RowData> {
         val parsed = Converter.parse(input) ?: return emptyList()
-        val converted = selectedCategory.units.map { unit ->
-            Triple(
-                unit,
-                Converter.format(Converter.convert(parsed, fromUnit, unit), p),
-                unit.id == toUnit.id,
+        val rows = selectedCategory.units.map { unit ->
+            RowData(
+                unit = unit,
+                value = Converter.format(Converter.convert(parsed, fromUnit, unit), p),
+                isTarget = unit.id == toUnit.id,
+                isFavorite = favKey(unit) in favs,
             )
         }
-        // Pin the target unit to the top, keep the rest in catalog order.
-        val target = converted.firstOrNull { it.third }
-        val rest = converted.filterNot { it.third }
-        return if (target != null) listOf(target) + rest else converted
+        return rows.sortedWith(
+            compareByDescending<RowData> { it.isTarget }
+                .thenByDescending { it.isFavorite }
+        )
     }
 
-    /** Plain (un-grouped) result text for clipboard — number only. */
+    /** Clipboard text — number only, with an ASCII sign and optional symbol. */
     fun copyText(value: String, withSymbol: Boolean, symbol: String): String {
-        val number = value.replace(" ", "")
+        val number = value.replace(" ", "").replace(Converter.MINUS, "-")
         return if (withSymbol) "$number $symbol" else number
+    }
+
+    /** A multi-line snapshot of the current conversion for the Share sheet. */
+    fun shareText(p: Precision): String {
+        val parsed = Converter.parse(input) ?: return ""
+        val header = "${input.replace(Converter.MINUS, "-")} ${fromUnit.symbol} ="
+        val lines = selectedCategory.units
+            .filter { it.id != fromUnit.id }
+            .joinToString("\n") { u ->
+                val v = Converter.format(Converter.convert(parsed, fromUnit, u), p)
+                    .replace(" ", "").replace(Converter.MINUS, "-")
+                "  $v ${u.symbol}  (${u.displayName})"
+            }
+        return "$header\n$lines\n— Converter (offline)"
+    }
+
+    fun toggleFavorite(unit: UnitDef) {
+        viewModelScope.launch { repo.toggleFavorite(favKey(unit)) }
+    }
+
+    /** Reverse lookup: take a result row's value+unit and make it the new input. */
+    fun setAsInput(unit: UnitDef, value: String) {
+        // Use the plain numeric value (strip grouping) as the new From input.
+        input = value.replace(" ", "").replace(Converter.MINUS, "-")
+        fromUnit = unit
+        persistSelection()
     }
 
     // ---- Events --------------------------------------------------------------
 
     fun onInputChange(new: String) {
-        input = new.filter { it.isDigit() || it == '.' || it == ',' || it == '-' }
+        input = new.filter { it.isDigit() || it == '.' || it == ',' || it == '-' || it == '\u2212' }
     }
 
     fun onSelectCategory(category: UnitCategory) {

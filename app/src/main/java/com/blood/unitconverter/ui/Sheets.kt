@@ -177,17 +177,18 @@ fun SettingsSheet(
         )
         Text(
             text = "Decimal places",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 8.dp),
         )
+        // Numeric options on one row, "Auto" on its own full-width row below.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Precision.entries.forEach { p ->
+            Precision.entries.filter { it != Precision.AUTO }.forEach { p ->
                 PrecisionChip(
                     label = p.label,
                     selected = p == precision,
@@ -196,17 +197,47 @@ fun SettingsSheet(
                 )
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+        ) {
+            PrecisionChip(
+                label = "Auto",
+                selected = precision == Precision.AUTO,
+                onClick = { onPrecision(Precision.AUTO) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         Text(
-            text = "100% offline · no accounts · no tracking. Settings & history are stored only on this device.",
-            style = MaterialTheme.typography.bodySmall,
+            text = "Auto removes trailing zeros and keeps up to ~6 significant figures.",
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 4.dp),
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 10.dp),
         )
+
+        // Privacy in its own readable card.
+        Spacer(Modifier.height(20.dp))
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        ) {
+            Text(
+                text = "100% offline · no accounts · no tracking.\nSettings & history are stored only on this device.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(18.dp),
+            )
+        }
         Text(
-            text = "Typeface: Fredoka (SIL OFL 1.1).",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 8.dp),
+            text = "About · Typeface: Fredoka (SIL OFL 1.1)",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp),
         )
         Spacer(Modifier.height(16.dp))
     }

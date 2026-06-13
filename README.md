@@ -12,10 +12,16 @@ A premium, ultra-clean Android unit converter built with **Jetpack Compose**,
   drift.
 
 ### Features
-- **All-units live list** (Google-style): type once, see every unit in the
-  category convert instantly. The chosen target unit is **pinned to the top and
-  shown big & blue**; tap any row to make it the new target (it springs to the
-  top), or tap its copy button to copy (with the unit symbol).
+- **All-units live list** (Google-style): type once, see every unit convert
+  instantly. The chosen target is **pinned to the top, big & blue**.
+  - **Tap** a row → make it the target. **Long-press** a row → use its value as
+    the new input (reverse lookup). **★** → pin a unit to the top. **Copy** icon
+    → copy that value with its symbol.
+- **Share** a full snapshot of all conversions (header button).
+- **Smart formatting**: integer part grouped (`1 234 567.89`), no confusing
+  mid-decimal spaces; proper minus sign (−); long values **auto-shrink to fit**
+  (never truncated) before falling back to scientific notation.
+- **Precision**: 0 / 2 / 4 / 6 / 8 / Auto decimals.
 - **Fredoka** typeface throughout (bundled offline). Crisp, perfectly-centered
   Material vector icons. Shifting result numbers use a monospace family so the
   layout never jumps as you type.

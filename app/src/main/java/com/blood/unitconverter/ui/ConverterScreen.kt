@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -33,8 +35,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.CompareArrows
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarOutline
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -82,7 +88,9 @@ fun ConverterScreen(vm: ConverterViewModel) {
     val clipboard = LocalClipboardManager.current
     val haptics = LocalHapticFeedback.current
 
+    val context = androidx.compose.ui.platform.LocalContext.current
     val precision by vm.precision.collectAsState()
+    val favorites by vm.favorites.collectAsState()
     var showHistory by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
 
@@ -93,6 +101,19 @@ fun ConverterScreen(vm: ConverterViewModel) {
         vm.saveToHistory()
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         scope.launch { snackbar.showSnackbar("Copied $text") }
+    }
+
+    fun share() {
+        val text = vm.shareText(precision)
+        if (text.isBlank()) {
+            scope.launch { snackbar.showSnackbar("Type a value to share") }
+            return
+        }
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(android.content.Intent.createChooser(intent, "Share conversion"))
     }
 
     Scaffold(
@@ -110,6 +131,8 @@ fun ConverterScreen(vm: ConverterViewModel) {
             Spacer(Modifier.height(4.dp))
             Header(
                 showTagline = vm.showTagline,
+                historyCount = vm.history.collectAsState().value.size,
+                onShare = { share() },
                 onHistory = { showHistory = true },
                 onSettings = { showSettings = true },
             )
@@ -119,15 +142,22 @@ fun ConverterScreen(vm: ConverterViewModel) {
             // Tightly grouped input + unit pickers.
             InputCard(vm, precision, haptics)
 
-            // PRIMARY RESULT AREA — all units live (Google-style). Tap to copy.
+            // PRIMARY RESULT AREA — all units live. Tap = retarget, long-press =
+            // use as input, star = pin, copy icon = copy.
             AllResultsList(
                 vm = vm,
                 precision = precision,
+                favorites = favorites,
                 onCopy = { unit, value -> copy(unit, value) },
                 onPickTarget = { unit ->
                     vm.onSelectTo(unit)
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 },
+                onReverse = { unit, value ->
+                    vm.setAsInput(unit, value)
+                    scope.launch { snackbar.showSnackbar("Set ${unit.displayName} as input") }
+                },
+                onToggleFav = { unit -> vm.toggleFavorite(unit) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -157,6 +187,8 @@ fun ConverterScreen(vm: ConverterViewModel) {
 @Composable
 private fun Header(
     showTagline: Boolean,
+    historyCount: Int,
+    onShare: () -> Unit,
     onHistory: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -175,7 +207,9 @@ private fun Header(
                 )
             }
         }
-        HeaderAction(Icons.Rounded.History, "History", onHistory)
+        HeaderAction(Icons.Rounded.IosShare, "Share conversion", onShare)
+        Spacer(Modifier.width(4.dp))
+        HeaderAction(Icons.Rounded.History, "History", onHistory, badge = historyCount)
         Spacer(Modifier.width(4.dp))
         HeaderAction(Icons.Rounded.Tune, "Settings", onSettings)
     }
@@ -186,20 +220,45 @@ private fun HeaderAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
+    badge: Int = 0,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    Surface(
-        onClick = onClick,
-        interactionSource = interaction,
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .size(48.dp) // ≥48dp touch target
-            .then(pressSqueeze(interaction)),
-    ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp))
+    Box {
+        Surface(
+            onClick = onClick,
+            interactionSource = interaction,
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .size(48.dp) // ≥48dp touch target
+                .then(pressSqueeze(interaction)),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp))
+            }
+        }
+        if (badge > 0) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .heightIn(min = 18.dp)
+                    .widthIn(min = 18.dp),
+            ) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 5.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (badge > 99) "99+" else badge.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }
@@ -289,8 +348,9 @@ private fun ExpressiveCategoryChip(label: String, selected: Boolean, onClick: ()
 }
 
 /**
- * INPUT CARD — value field (with a persistent unit label shown inline) + the two
- * unit selectors and a large morphing swap button with haptics.
+ * INPUT CARD — no more redundant "From" row. The value field's unit chip IS the
+ * From picker (tap it). Below: a single "To" selector with the swap button, so
+ * each piece of info appears exactly once.
  */
 @Composable
 private fun InputCard(
@@ -304,6 +364,7 @@ private fun InputCard(
         animationSpec = Motion.spatialExpressive(),
         label = "swapRotation",
     )
+    var fromExpanded by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -316,19 +377,13 @@ private fun InputCard(
                 isError = vm.hasError,
                 unitSymbol = vm.fromUnit.symbol,
                 onChange = vm::onInputChange,
+                onUnitClick = { fromExpanded = true },
             )
             Spacer(Modifier.height(14.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                UnitColumn(
-                    label = "From",
-                    units = vm.selectedCategory.units,
-                    selected = vm.fromUnit,
-                    onSelect = vm::onSelectFrom,
-                    modifier = Modifier.weight(1f),
-                )
                 MorphIconButton(
                     onClick = {
                         vm.onSwap()
@@ -339,14 +394,14 @@ private fun InputCard(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Rounded.CompareArrows,
-                        contentDescription = "Swap units",
+                        contentDescription = "Swap from and to units",
                         modifier = Modifier
                             .size(24.dp)
                             .graphicsLayer { rotationZ = rotation },
                     )
                 }
                 UnitColumn(
-                    label = "To",
+                    label = "To (highlighted result)",
                     units = vm.selectedCategory.units,
                     selected = vm.toUnit,
                     onSelect = vm::onSelectTo,
@@ -355,14 +410,22 @@ private fun InputCard(
             }
         }
     }
+
+    UnitPickerSheet(
+        expanded = fromExpanded,
+        units = vm.selectedCategory.units,
+        selected = vm.fromUnit,
+        onSelect = { vm.onSelectFrom(it); fromExpanded = false },
+        onDismiss = { fromExpanded = false },
+    )
 }
 
 /**
  * The value input.
  *  - Single-line; placeholder + live text share one Box + style (never overlap).
- *  - A PERSISTENT unit symbol stays pinned to the right so the active unit is
- *    always visible inline.
- *  - Negative values are fully supported (the keypad shows '-').
+ *  - The unit chip on the right is the TAPPABLE "From" picker (chevron hint), so
+ *    the unit is shown once and is also the affordance to change it.
+ *  - Negatives supported.
  */
 @Composable
 private fun ValueField(
@@ -370,6 +433,7 @@ private fun ValueField(
     isError: Boolean,
     unitSymbol: String,
     onChange: (String) -> Unit,
+    onUnitClick: () -> Unit,
 ) {
     val container by animateColorAsState(
         targetValue = if (isError) MaterialTheme.colorScheme.errorContainer
@@ -395,7 +459,7 @@ private fun ValueField(
                 .fillMaxWidth()
                 .heightIn(min = 64.dp)
                 .background(container)
-                .padding(horizontal = 18.dp, vertical = 12.dp),
+                .padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
@@ -422,13 +486,36 @@ private fun ValueField(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = unitSymbol,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-            )
+            Spacer(Modifier.width(8.dp))
+            // Tappable From-unit chip with a chevron, so it reads as actionable.
+            val chipInteraction = remember { MutableInteractionSource() }
+            Surface(
+                onClick = onUnitClick,
+                interactionSource = chipInteraction,
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.then(pressSqueeze(chipInteraction)),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .padding(start = 14.dp, end = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = unitSymbol,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Icon(
+                        Icons.Rounded.ArrowDropDown,
+                        contentDescription = "Change input unit",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -518,11 +605,14 @@ private fun UnitPickerButton(selected: UnitDef, onClick: () -> Unit) {
 private fun AllResultsList(
     vm: ConverterViewModel,
     precision: Precision,
+    favorites: Set<String>,
     onCopy: (UnitDef, String) -> Unit,
     onPickTarget: (UnitDef) -> Unit,
+    onReverse: (UnitDef, String) -> Unit,
+    onToggleFav: (UnitDef) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val rows = vm.allResults(precision)
+    val rows = vm.allResults(precision, favorites)
     val hasInput = vm.input.isNotBlank() && !vm.hasError
 
     Surface(
@@ -551,13 +641,13 @@ private fun AllResultsList(
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                items(rows, key = { it.first.id }) { (unit, value, isTarget) ->
+                items(rows, key = { it.unit.id }) { row ->
                     ResultRow(
-                        unit = unit,
-                        value = value,
-                        isTarget = isTarget,
-                        onSelect = { onPickTarget(unit) },
-                        onCopy = { onCopy(unit, value) },
+                        row = row,
+                        onSelect = { onPickTarget(row.unit) },
+                        onReverse = { onReverse(row.unit, row.value) },
+                        onCopy = { onCopy(row.unit, row.value) },
+                        onToggleFav = { onToggleFav(row.unit) },
                         modifier = Modifier.animateItem(),
                     )
                 }
@@ -566,16 +656,19 @@ private fun AllResultsList(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ResultRow(
-    unit: UnitDef,
-    value: String,
-    isTarget: Boolean,
+    row: ConverterViewModel.RowData,
     onSelect: () -> Unit,
+    onReverse: () -> Unit,
     onCopy: () -> Unit,
+    onToggleFav: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isTarget = row.isTarget
     val interaction = remember { MutableInteractionSource() }
+    val haptics = LocalHapticFeedback.current
     val container by animateColorAsState(
         targetValue = if (isTarget) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -588,62 +681,101 @@ private fun ResultRow(
     else MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
-        onClick = onSelect, // tap the row to make it the target (pins + blue)
-        interactionSource = interaction,
         shape = RoundedCornerShape(if (isTarget) 22.dp else 16.dp),
         color = container,
         modifier = modifier
             .fillMaxWidth()
-            .then(pressSqueeze(interaction, pressedScale = 0.98f)),
+            .then(pressSqueeze(interaction, pressedScale = 0.98f))
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = androidx.compose.material3.ripple(),
+                onClick = onSelect, // tap = make it the target (pins + blue)
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onReverse() // long-press = use this value+unit as new input
+                },
+            ),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = if (isTarget) 76.dp else 60.dp)
-                .padding(horizontal = 18.dp, vertical = if (isTarget) 14.dp else 10.dp),
+                .padding(
+                    start = 18.dp, end = 6.dp,
+                    top = if (isTarget) 14.dp else 10.dp,
+                    bottom = if (isTarget) 14.dp else 10.dp,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = unit.displayName,
-                    style = MaterialTheme.typography.labelMedium,
+                    text = row.unit.displayName,
+                    style = MaterialTheme.typography.titleSmall, // bolder label, faster scan
                     color = onContainerSub,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Box(
-                    modifier = Modifier.heightIn(min = if (isTarget) 40.dp else 32.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = if (isTarget) 44.dp else 34.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
-                    AnimatedContent(
-                        targetState = value,
-                        transitionSpec = {
-                            (fadeIn(Motion.effects())).togetherWith(fadeOut(Motion.effects()))
-                        },
-                        label = "rowValue",
-                    ) { v ->
-                        Text(
-                            text = v,
-                            style = if (isTarget) DisplayNumberStyle.copy(
-                                fontSize = MaterialTheme.typography.displaySmall.fontSize,
-                            ) else InputNumberStyle,
-                            color = onContainer,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    AutoSizeText(
+                        text = row.value,
+                        style = if (isTarget) DisplayNumberStyle.copy(
+                            fontSize = MaterialTheme.typography.displaySmall.fontSize,
+                        ) else InputNumberStyle,
+                        color = onContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
-                text = unit.symbol,
+                text = row.unit.symbol,
                 style = MaterialTheme.typography.titleSmall,
                 color = onContainerSub,
+                maxLines = 1,
             )
-            Spacer(Modifier.width(6.dp))
-            // Dedicated copy control (the row tap selects; this copies).
-            CopyButton(
-                onClick = onCopy,
+            IconToggle(
+                filled = row.isFavorite,
                 tint = onContainerSub,
-                description = "Copy ${unit.displayName}",
+                description = if (row.isFavorite) "Unpin ${row.unit.displayName}" else "Pin ${row.unit.displayName}",
+                iconFilled = Icons.Rounded.Star,
+                iconOutline = Icons.Rounded.StarOutline,
+                onClick = onToggleFav,
+            )
+            CopyButton(onClick = onCopy, tint = onContainerSub, description = "Copy ${row.unit.displayName}")
+        }
+    }
+}
+
+@Composable
+private fun IconToggle(
+    filled: Boolean,
+    tint: Color,
+    description: String,
+    iconFilled: androidx.compose.ui.graphics.vector.ImageVector,
+    iconOutline: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        shape = RoundedCornerShape(50),
+        color = Color.Transparent,
+        modifier = Modifier
+            .size(40.dp)
+            .then(pressSqueeze(interaction)),
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(
+                if (filled) iconFilled else iconOutline,
+                contentDescription = description,
+                tint = if (filled) MaterialTheme.colorScheme.primary else tint,
+                modifier = Modifier.size(18.dp),
             )
         }
     }
