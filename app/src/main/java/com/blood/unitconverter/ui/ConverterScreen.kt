@@ -194,7 +194,7 @@ private fun HeaderAction(
             .size(48.dp) // ≥48dp touch target
             .then(pressSqueeze(interaction)),
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             FaIcon(glyph, contentDescription = label, size = 18.sp)
         }
     }
@@ -656,7 +656,7 @@ private fun CopyButton(onClick: () -> Unit, tint: Color, description: String) {
             .size(40.dp) // ≥40 inner, ample tap target
             .then(pressSqueeze(interaction)),
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             FaIcon(FaIcons.COPY, contentDescription = description, size = 16.sp, tint = tint)
         }
     }
