@@ -13,7 +13,7 @@ android {
         applicationId = "com.blood.unitconverter"
         minSdk = 24
         targetSdk = 35
-        versionCode = 9
+        versionCode = 10
         versionName = "1.5.2"
 
         vectorDrawables {
@@ -23,10 +23,16 @@ android {
 
     buildTypes {
         release {
-            // R8 code + resource shrinking for a lean, fast APK. The only custom
-            // keep rules are for kotlinx-serialization (see proguard-rules.pro).
+            // Code shrinking (R8) for a lean, fast APK. The only custom keep
+            // rules are for kotlinx-serialization (see proguard-rules.pro).
+            //
+            // Resource shrinking is intentionally DISABLED: it was stripping the
+            // launcher-icon resources from the release APK (debug was unaffected
+            // because debug never shrinks), causing the default Android icon to
+            // show. The app has very few resources, so the size win wasn't worth
+            // the breakage.
             isMinifyEnabled = true
-            isShrinkResources = true
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
