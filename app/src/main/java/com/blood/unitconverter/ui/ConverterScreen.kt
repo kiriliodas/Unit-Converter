@@ -161,10 +161,10 @@ private fun CategorySelector(vm: ConverterViewModel) {
 }
 
 /**
- * A category chip that MORPHS its container silhouette (smooth squircle ⇄
- * 8-point star) and spring-scales when it becomes the active selection — the
- * "drag the shape over to the new selection" feel from the spec, plus springy
- * press feedback. Colors cross-fade with a calm (non-bouncy) effect spring.
+ * A category chip. It keeps a clean PILL shape (morph silhouettes only look
+ * right on square components, so we don't stretch one across a wide chip).
+ * The expressive feel comes from a springy pop-scale on selection + a springy
+ * press squeeze, with calm color cross-fades.
  */
 @Composable
 private fun ExpressiveCategoryChip(
@@ -174,12 +174,6 @@ private fun ExpressiveCategoryChip(
 ) {
     val interaction = remember { MutableInteractionSource() }
 
-    // Selected = star silhouette; unselected = smooth squircle. Spring-driven.
-    val morphProgress by animateFloatAsState(
-        targetValue = if (selected) 1f else 0f,
-        animationSpec = Motion.spatialDefault(),
-        label = "chipMorph",
-    )
     // Selection pops with a slight overshoot.
     val selectScale by animateFloatAsState(
         targetValue = if (selected) 1.06f else 1f,
@@ -202,7 +196,7 @@ private fun ExpressiveCategoryChip(
     Surface(
         onClick = onClick,
         interactionSource = interaction,
-        shape = MorphPolygonShape(Morphs.cookieToStar, morphProgress),
+        shape = RoundedCornerShape(50), // pill
         color = container,
         contentColor = labelColor,
         modifier = Modifier

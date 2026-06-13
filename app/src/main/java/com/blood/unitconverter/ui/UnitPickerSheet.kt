@@ -2,7 +2,6 @@ package com.blood.unitconverter.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,8 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.blood.unitconverter.data.UnitDef
-import com.blood.unitconverter.ui.morph.MorphPolygonShape
-import com.blood.unitconverter.ui.morph.Morphs
 import com.blood.unitconverter.ui.morph.pressSqueeze
 import com.blood.unitconverter.ui.theme.Motion
 
@@ -99,12 +97,6 @@ private fun UnitRow(
 ) {
     val interaction = remember { MutableInteractionSource() }
 
-    // Selected rows morph from a rounded rectangle look into a soft star edge.
-    val morphProgress by animateFloatAsState(
-        targetValue = if (selected) 0.4f else 0f,
-        animationSpec = Motion.spatialDefault(),
-        label = "rowMorph",
-    )
     val container by animateColorAsState(
         targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -119,7 +111,7 @@ private fun UnitRow(
     Surface(
         onClick = onClick,
         interactionSource = interaction,
-        shape = MorphPolygonShape(Morphs.cookieToStar, morphProgress),
+        shape = RoundedCornerShape(20.dp),
         color = container,
         modifier = Modifier
             .fillMaxWidth()

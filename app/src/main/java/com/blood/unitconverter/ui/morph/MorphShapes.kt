@@ -1,6 +1,5 @@
 package com.blood.unitconverter.ui.morph
 
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Outline
@@ -68,13 +67,11 @@ object Shapes {
 /**
  * A Compose [Shape] that renders a [Morph] at a given [progress] (0f..1f).
  *
- * Because it implements [Shape], it can be passed to ANY component's `shape`
- * parameter (Surface, Card, Button, IconButton, clip, etc.). That means real,
- * interactive components actually clip to the morphing silhouette and animate
- * elastically — the geometry isn't just painted decoration.
- *
- * The morph path is built on the unit square and then scaled/translated to fill
- * the component bounds, so it works at any size.
+ * IMPORTANT: the polygon is scaled UNIFORMLY (by the smaller dimension) and
+ * centered, so the round silhouette is never stretched into a flat "lens" on
+ * wide/short components. This means these morph shapes should only be used on
+ * roughly SQUARE components (icon buttons, dots, badges). Wide rectangular
+ * containers should use normal rounded/pill shapes instead.
  */
 class MorphPolygonShape(
     private val morph: Morph,
@@ -88,12 +85,14 @@ class MorphPolygonShape(
         layoutDirection: LayoutDirection,
         density: Density,
     ): Outline {
-        // graphics-shapes emits a path roughly in [-1, 1]; normalize to [0, 1]
-        // then scale to the component's pixel size.
+        // graphics-shapes emits a path roughly in [-1, 1] centered at origin.
         val path: Path = morph.toPath(progress).asComposePath()
         matrix.reset()
-        matrix.scale(size.width / 2f, size.height / 2f)
-        matrix.translate(1f, 1f)
+        // Uniform scale by the smaller half-dimension keeps the shape circular,
+        // never lens-stretched; then translate to the component center.
+        val r = minOf(size.width, size.height) / 2f
+        matrix.translate(size.width / 2f, size.height / 2f)
+        matrix.scale(r, r)
         path.transform(matrix)
         return Outline.Generic(path)
     }
@@ -102,6 +101,7 @@ class MorphPolygonShape(
 /**
  * A static (non-morphing) polygon as a Compose [Shape], handy for resting
  * states where we still want the squircle silhouette without animation.
+ * Scales uniformly + centered (same rationale as [MorphPolygonShape]).
  */
 class RoundedPolygonShape(
     private val polygon: RoundedPolygon,
@@ -116,8 +116,9 @@ class RoundedPolygonShape(
     ): Outline {
         val path = polygon.toPath().asComposePath()
         matrix.reset()
-        matrix.scale(size.width / 2f, size.height / 2f)
-        matrix.translate(1f, 1f)
+        val r = minOf(size.width, size.height) / 2f
+        matrix.translate(size.width / 2f, size.height / 2f)
+        matrix.scale(r, r)
         path.transform(matrix)
         return Outline.Generic(path)
     }
